@@ -4,7 +4,7 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_CXX
-  "/home/xian-jie/workspace/pcl_test_20180812_1522/main.cpp" "/home/xian-jie/workspace/pcl_test_20180812_1522/build/CMakeFiles/pcl_hdl_viewer_simple.dir/main.cpp.o"
+  "/home/xian-jie/github/LiDar/main.cpp" "/home/xian-jie/github/LiDar/build/CMakeFiles/pcl_hdl_viewer_simple.dir/main.cpp.o"
   )
 set(CMAKE_CXX_COMPILER_ID "GNU")
 

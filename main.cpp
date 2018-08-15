@@ -75,6 +75,7 @@ void pcl_viewer()
     Vector3f cameraAt = Vector3f(0.0, 0.0, 0.0);
     double LiDar_Horizontal_Offset = 0;
 
+    cout << "Please input LiDar horizontal offset : "; 
     cin >> LiDar_Horizontal_Offset;
 
     boundary.setCameraParameter(cameraAt, "UL", camera_Height, camera_Width, camera_Vertical_FOV, camera_Horizontal_FOV);
