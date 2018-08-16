@@ -91,7 +91,7 @@ void pcl_viewer()
     //viewer->addPointCloud(pcd_to_pointCloud(filename), filename);
     //viewer->addPolygonMesh(stl_to_mesh(filename), filename);
     viewer->addPointCloud(cloud, filename);
-
+    
     viewer->spin();
     /*
     while( !viewer->wasStopped() ){
