@@ -17,7 +17,8 @@ namespace myClass
 		double camera_Width;
 		double camera_Vertical_FOV;
 		double camera_Horizontal_FOV;
-		double camera_Depth;
+		double camera_Vertical_Depth;
+		double camera_Horizontal_Depth;
 		bool cameraParameterIsSet;
 
 		double LiDar_Height_Offset;
@@ -46,13 +47,14 @@ namespace myClass
 			this->camera_Width = camera_Width;
 			this->camera_Vertical_FOV = camera_Vertical_FOV;
 			this->camera_Horizontal_FOV = camera_Horizontal_FOV;
-			this->camera_Depth = (camera_Width/2.0) / tan(camera_Horizontal_FOV/2.0);		//計算深度, 計算用
+			this->camera_Vertical_Depth = (camera_Height/2.0) / tan(camera_Vertical_FOV/2.0);		//計算深度, 計算用
+			this->camera_Horizontal_Depth = (camera_Width/2.0) / tan(camera_Horizontal_FOV/2.0);		//計算深度, 計算用
 
 			cameraParameterIsSet = true;
 			BoundIsSet = false;				//須重新計算邊界
 		}
 
-		void setLiDarParameter(double LiDar_Height_Offset, double LiDar_Horizontal_Offset, double focal_Leftength_Offset)
+		void setLiDarParameter(double LiDar_Height_Offset, double LiDar_Horizontal_Offset = 0, double focal_Leftength_Offset = 0)
 		{
 			this->LiDar_Height_Offset = LiDar_Height_Offset;
 			this->LiDar_Horizontal_Offset = LiDar_Horizontal_Offset;
@@ -97,10 +99,10 @@ namespace myClass
 			double object_Right = object_Left + object_Width;
 			
 			//將邊界轉換為角度
-			double object_Up_Angle = atan(object_Up / this->camera_Depth);
-			double object_Down_Angle = atan(object_Down / this->camera_Depth);
-			double object_Left_Angle = atan(object_Left / this->camera_Depth);
-			double object_Right_Angle = atan(object_Right / this->camera_Depth);
+			double object_Up_Angle = atan(object_Up / this->camera_Vertical_Depth);
+			double object_Down_Angle = atan(object_Down / this->camera_Vertical_Depth);
+			double object_Left_Angle = atan(object_Left / this->camera_Horizontal_Depth);
+			double object_Right_Angle = atan(object_Right / this->camera_Horizontal_Depth);
 			
 			//將邊界的角度以LiDar的高低差和最佳化焦距修正, 修正後的值在等於焦距時無誤差
 			this->LiDar_Up_Angle = atan((this->focal_Leftength_Offset * tan(object_Up_Angle) + this->LiDar_Height_Offset) / this->focal_Leftength_Offset);
@@ -110,7 +112,7 @@ namespace myClass
 
 			BoundIsSet = true;
 		}
-		void division(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
+		void division(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, bool keep_Inside = true)
 		{
 			if(!BoundIsSet)
 			{
@@ -119,7 +121,7 @@ namespace myClass
 
 			for(size_t i = 0; i < cloud->points.size(); i++)
 			{
-				if(!this->pointIsInside(cloud->points[i].getVector3fMap()))
+				if(keep_Inside ^ this->pointIsInside(cloud->points[i].getVector3fMap()))
 				{
 					cloud->points.erase(cloud->points.begin() + i);		//將超出邊界的點移除
 					i--;

@@ -64,7 +64,7 @@ void pcl_viewer()
     myClass::Boundary boundary;
     double camera_Height = sqrt(3.0)*2.0;
     double camera_Width = sqrt(3.0)*2.0;
-    double camera_Vertical_FOV = 120.0 * M_PI / 180.0;
+    double camera_Vertical_FOV = 60.0 * M_PI / 180.0;
     double camera_Horizontal_FOV = 180.0 * M_PI / 180.0;
     double object_X = 0;
     double object_Y = 0;
@@ -75,8 +75,10 @@ void pcl_viewer()
     Vector3f cameraAt = Vector3f(0.0, 0.0, 0.0);
     double LiDar_Horizontal_Offset = 0;
 
-    cout << "Please input LiDar horizontal offset : "; 
-    cin >> LiDar_Horizontal_Offset;
+    cout << "Please input camera_Horizontal_FOV : "; 
+    cin >> camera_Horizontal_FOV;
+
+    camera_Horizontal_FOV = camera_Horizontal_FOV * M_PI / 180.0;
 
     boundary.setCameraParameter(cameraAt, "UL", camera_Height, camera_Width, camera_Vertical_FOV, camera_Horizontal_FOV);
     boundary.setLiDarParameter(LiDar_Height_Offset, LiDar_Horizontal_Offset, focal_Leftength_Offset);
@@ -84,14 +86,20 @@ void pcl_viewer()
 
     boundary.division(cloud);
     
+    cout << boundary.LiDar_Up_Angle * 180.0 / M_PI << endl;
+    cout << boundary.LiDar_Down_Angle * 180.0 / M_PI << endl;
+    cout << boundary.LiDar_Left_Angle * 180.0 / M_PI << endl;
+    cout << boundary.LiDar_Right_Angle * 180.0 / M_PI << endl;
+
     viewer.reset(new PCLVisualizer);
     viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*) NULL);
-    viewer->addCoordinateSystem( 3.0, "coordinate" );
+    //viewer->addCoordinateSystem( 3.0, "coordinate" );
     //viewer->addPolygonMesh(pcd_to_poissonMesh(filename), filename);
     //viewer->addPointCloud(pcd_to_pointCloud(filename), filename);
     //viewer->addPolygonMesh(stl_to_mesh(filename), filename);
     viewer->addPointCloud(cloud, filename);
-    
+    viewer->setCameraPosition( 0.0, -0.1, 0.0, 0.0, 0.0, 1.0, 0 );
+    viewer->setCameraFieldOfView(60.0 * M_PI / 180.0);
     viewer->spin();
     /*
     while( !viewer->wasStopped() ){
