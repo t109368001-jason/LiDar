@@ -1,3 +1,0 @@
-/home/xian-jie/github/LiDar/build/CMakeFiles/edit_cache.dir
-/home/xian-jie/github/LiDar/build/CMakeFiles/rebuild_cache.dir
-/home/xian-jie/github/LiDar/build/CMakeFiles/pcl_hdl_viewer_simple.dir
