@@ -108,6 +108,7 @@ void pcl_viewer()
 
     viewer.reset(new PCLVisualizer);
     viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*) NULL);
+    viewer->addCoordinateSystem( 3.0, "coordinate" );
     viewer->addPolygonMesh(mesh, filename);
     //viewer->addPointCloud(cloud, filename);
     viewer->spin();
