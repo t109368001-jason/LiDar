@@ -14,5 +14,5 @@ mkdir build
 cd build
 cmake ..
 make
-./pcl_hdl_viewer_simple ../file/1534128682089346.pcd
+./pcl_viewer ../file/1534128682089346.pcd
 ```
