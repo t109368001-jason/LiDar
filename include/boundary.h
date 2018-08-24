@@ -3,6 +3,9 @@
 
 #include <iostream>
 #include <cmath>
+#include <thread>
+#include <numeric>
+#include <future>
 #include <type_traits>
 #include <pcl/console/time.h>
 #include "function.h"
@@ -36,12 +39,16 @@ namespace myClass
 		double LiDar_Right_Angle;
 		bool BoundIsSet;
 
+		bool keep_Inside;
+		int division_num;
+
 		Boundary()
 		{
 			cameraParameterIsSet = false;
 			LiDarParameterIsSet = false;
 			BoundIsSet = false;
 		}
+
 		void setAllForwardDirection()
 		{
 			this->LiDar_Up_Angle = M_PI_2;
@@ -51,6 +58,7 @@ namespace myClass
 
 			this->BoundIsSet = true;
 		}
+
 		void setCameraParameter(Vector3f cameraAt, string camera_O, double camera_Height, double camera_Width, double camera_Vertical_FOV, double camera_Horizontal_FOV)
 		{
 			this->cameraAt = cameraAt;
@@ -124,54 +132,80 @@ namespace myClass
 
 			BoundIsSet = true;
 		}
-		template<class T>
-		T division(T input, bool keep_Inside = true)
+
+		template<typename PointT>
+		typename pcl::PointCloud<PointT>::Ptr divisionPart(typename pcl::PointCloud<PointT>::Ptr cloud)
 		{
-			T cloud = input;
-			if(!BoundIsSet)
+			auto beg = cloud->points.begin();
+			auto end = cloud->points.end();
+			auto len = end - beg;
+
+			if (len < this->division_num)
 			{
-				cout << "Bound parameter is not set" << endl;
+				typename pcl::PointCloud<PointT>::Ptr cloud_out(new typename pcl::PointCloud<PointT>);
+				for(auto it = beg; it != end; ++it)
+				{
+					if((!this->keep_Inside) ^ this->pointIsInside((*it).getVector3fMap()))
+					{
+						cloud_out->points.push_back(*it);
+					}
+				}
+				return cloud_out;
 			}
 
-    		pcl::console::TicToc tt;
-    		std::cerr << "Point cloud before division: " << cloud->points.size() << " points" << std::endl;
-    		std::cerr << "Dividing point cloud...", tt.tic();
-			for(size_t i = 0; i < cloud->points.size(); i++)
+			auto mid = beg + len/2;
+			
+			typename pcl::PointCloud<PointT>::Ptr cloud1(new typename pcl::PointCloud<PointT>);
+			typename pcl::PointCloud<PointT>::Ptr cloud2(new typename pcl::PointCloud<PointT>);
+			
+			for(auto it = beg; it != mid; ++it)
 			{
-				if(keep_Inside ^ this->pointIsInside(cloud->points[i].getVector3fMap()))
-				{
-					cloud->points.erase(cloud->points.begin() + i);		//將超出邊界的點移除
-					i--;
-				}
+				cloud1->points.push_back(*it);
 			}
-    		std::cerr << " >> Done: " << tt.toc() << " ms\n";
-			std::cerr << "Point cloud after division: " << cloud->points.size() << " points" << std::endl;
-			return cloud;
+			for(auto it = mid; it != end; ++it)
+			{
+				cloud2->points.push_back(*it);
+			}
+			
+			auto handle = std::async(std::launch::async, &Boundary::divisionPart<PointT>, this, cloud1);
+
+			typename pcl::PointCloud<PointT>::Ptr cloud_out(divisionPart<PointT>(cloud2));
+
+			typename pcl::PointCloud<PointT>::Ptr out1(handle.get());
+			/*
+			for(auto it = out1->points.begin(); it != out1->points.end(); ++it)
+			{
+				cloud_out->points.push_back(*it);
+			}
+			*/
+			for(int i = 0; i < out1->points.size(); i++)
+			{
+				cloud_out->points.push_back(out1->points[i]);
+			}
+			cloud_out->width = (int) cloud_out->points.size();
+			cloud_out->height = 1;
+			return cloud_out;
 		}
-		myClass::PointXYZR division(myClass::PointXYZR input, bool keep_Inside = true)
+
+		template<typename PointT>
+		typename pcl::PointCloud<PointT>::Ptr division(typename pcl::PointCloud<PointT>::Ptr input, bool keep_Inside = true)
 		{
-			myClass::PointXYZR xyzr = input;
+			this->keep_Inside = keep_Inside;
+			this->division_num = std::ceil(input->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
 			if(!BoundIsSet)
 			{
-				cout << "Bound parameter is not set" << endl;
+				std::cerr << "\nBound parameter is not set\n";
+				return input;
+			}
+			if(((LiDar_Up_Angle - LiDar_Down_Angle) == 0)||((LiDar_Right_Angle - LiDar_Left_Angle) == 0))
+			{
+				std::cerr << "\nInput angle valid\n";
+				return input;
 			}
 
-			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud = xyzr.cloud;
-    		pcl::console::TicToc tt;
-    		std::cerr << "Point cloud before division: " << cloud->points.size() << " points" << std::endl;
-    		std::cerr << "Dividing point cloud...", tt.tic();
-			for(size_t i = 0; i < cloud->points.size(); i++)
-			{
-				if(keep_Inside ^ this->pointIsInside(cloud->points[i].getVector3fMap()))
-				{
-					cloud->points.erase(cloud->points.begin() + i);		//將超出邊界的點移除
-					if(xyzr.ring.size() > 0) xyzr.ring.erase(xyzr.ring.begin() + i);		//將超出邊界的點移除
-					i--;
-				}
-			}
-    		std::cerr << " >> Done: " << tt.toc() << " ms\n";
-			std::cerr << "Point cloud after division: " << cloud->points.size() << " points" << std::endl;
+			return divisionPart<PointT>(input);
 		}
+
 	private:
 		bool pointIsInside(Vector3f point)
 		{

@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <cmath>
+#include <vector>
 #include <algorithm>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
@@ -15,98 +16,147 @@ using namespace std;
 using namespace myClass;
 
 namespace myFunction{
+	//取得點雲中最近的兩個點距離
+	template<class T>
+	double getMinDistanceBetweenPoints(T cloud)
+	{
+		double minDistance = (cloud->points[0].getVector3fMap()-cloud->points[1].getVector3fMap()).norm();
+		pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
 
-	//std::thread::hardware_concurrency();
-    template<class T>
-    T getMaxPart (T input)
-    {
-        pcl::console::TicToc tt;
-        pcl::console::TicToc tt1;
-        std::cerr << "\nSegmentation...\n", tt1.tic();
-		
-        T cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        *cloud = *input;
-		std::vector<T> clouds;
-        std::cerr << "\tComputing min distance...", tt.tic();
-        double min_Distance = cloud->points[0].getVector3fMap().norm();
-        for(size_t i = 0; i < cloud->points.size(); i++)
-        {
-            for(size_t j = 0; j < cloud->points.size(); j++)
-            {
-                if(i == j)continue;
-                min_Distance = fmin((cloud->points[i].getVector3fMap() - cloud->points[j].getVector3fMap()).norm(), min_Distance);
-            }
-        }
-        std::cerr << " >> Done: " << tt.toc() << " ms\n";
-
-        std::cerr << "\tComputing...\n", tt.tic();
-        double threshold = min_Distance * 1.1;
-        T temp(new pcl::PointCloud<pcl::PointXYZ>);
-        clouds.push_back(temp);
-        clouds[0]->points.push_back(cloud->points[0]);
-        cloud->points.erase(cloud->points.begin() + 0);
-        for(int64_t h = 0; h < clouds.size(); h++)
-        {
-            for(int64_t i = 0; i < clouds[h]->points.size(); i++)
-            {
-                for(int64_t j = 0; j < cloud->points.size(); j++)
-                {
-                    if((clouds[h]->points[i].getVector3fMap() - cloud->points[j].getVector3fMap()).norm() < threshold)
-                    {
-                        clouds[h]->points.push_back(cloud->points[j]);
-                        cloud->points.erase(cloud->points.begin() + j);
-                    }
-                }
-            }
-            if(cloud->points.size() > 0)
-            {
-                T empty(new pcl::PointCloud<pcl::PointXYZ>);
-                clouds.push_back(empty);
-                clouds[h+1]->points.push_back(cloud->points[0]);
-                cloud->points.erase(cloud->points.begin() + 0);
-            }
-        }
-
-        while(clouds.size() > 2)
-        {
-            threshold  = threshold * 1.1;
-            for(int64_t i = 0; i < clouds.size(); i++)
-            {
-                for(int64_t j = 0; j < clouds[i]->points.size(); j++)
-                {
-                    Eigen::Vector3f current = clouds[i]->points[j].getVector3fMap();
-                    for(int64_t k = i+1; k < clouds.size(); k++)
-                    {
-                        for(int64_t l = 0; l < clouds[k]->points.size(); l++)
-                        {
-                            if((current - clouds[k]->points[l].getVector3fMap()).norm() < threshold)
-                            {
-                                clouds[i]->points.push_back(clouds[k]->points[l]);
-                                clouds[k]->points.erase(clouds[k]->points.begin() + l);
-                                l--;
-                            }
-                        }
-                        if(clouds[k]->points.size() == 0)
-                        {
-                            clouds.erase(clouds.begin() + k);
-                            k--;
-                        }
-                    }
-                }
-            }
+		tree->setInputCloud(cloud);
+		for(int i = 0; i < cloud->points.size(); i++)
+		{
+			std::vector<int> result(2);
+			std::vector<float> result_sqr_distance(2);
+			tree->nearestKSearch(cloud->points[i],2,result,result_sqr_distance);
+			minDistance = std::fmin(std::sqrt(result_sqr_distance[1]), minDistance);
 		}
 
-        std::cerr << "\t >> Done: " << tt.toc() << " ms\n\n";
-        std::cerr << " >> Done: " << tt1.toc() << " ms\n\n";
-        if(clouds[0]->points.size() > clouds[1]->points.size())
-        {
-            return clouds[0];
-        }
-        return clouds[1];
-    }
-	void pcd_to_poissonMesh(std::string filename, pcl::PolygonMesh &poission);
-	pcl::PolygonMesh pcd_to_poissonMesh(std::string filename);
+		return minDistance;
+	}
+	//取得點雲中最遠的兩個點距離
+	template<class T>
+	double getMaxDistanceBetweenPoints(T cloud)
+	{
+		double maxDistance = 0;
+		
+		for(int i = 0; i < cloud->points.size(); i++)
+		{
+			for(int j = 0; j < cloud->points.size(); j++)
+			{
+				if(i == j)continue;
+				maxDistance = std::fmax((cloud->points[i].getVector3fMap() - cloud->points[j].getVector3fMap()).norm(), maxDistance);
+			}
+		}
+		
+		return maxDistance;
+	}
+	//取得點雲中距離point最近的點
+	template<class T>
+	pcl::PointXYZ getNearestPoint(T cloud, pcl::PointXYZ point)
+	{
+		pcl::PointXYZ point_out;
+		std::vector<int> result(1);
+		std::vector<float> result_sqr_distance(1);
+		pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
 
+		tree->setInputCloud(cloud);
+		tree->nearestKSearch(point,result.size(),result,result_sqr_distance);
+		point_out = cloud->points[result[0]];
+
+		return point_out;
+	}
+	//取得點雲中距離point最遠的點
+	template<class T>
+	pcl::PointXYZ getFarthestPoint(T cloud, pcl::PointXYZ point)
+	{
+		double index;
+		double max_distance = 0;
+		pcl::PointXYZ point_out;
+
+		for(int i = 0; i < cloud->points.size(); i++)
+		{
+			double temp = (point.getVector3fMap() - cloud->points[i].getVector3fMap()).norm();
+			if(temp > max_distance)
+			{
+				max_distance = std::fmax(max_distance, temp);
+				index = i;
+			}
+		}
+		point_out = cloud->points[index];
+
+		return point_out;
+	}
+
+	//std::thread::hardware_concurrency();
+    template<class T=pcl::PointCloud<pcl::PointXYZ>::Ptr>
+    pcl::PointCloud<pcl::PointXYZ>::Ptr getMaxPart (pcl::PointCloud<pcl::PointXYZ>::Ptr input)
+    {
+        pcl::console::TicToc tt;
+        std::cerr << "Segmentation...", tt.tic();
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        *cloud = *input;
+
+		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clouds;
+
+		double min_distance = getMinDistanceBetweenPoints(cloud);
+		
+		std::vector<int> result(1);
+		std::vector<float> result_sqr_distance(1);
+		pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+
+		min_distance *= 1.1;
+		int i=0;
+		while(cloud->points.size() > 0)
+		{
+			if(i >= cloud->points.size())
+			{
+				i = 0;
+				min_distance *= 1.1;
+				continue;
+			}
+			pcl::PointCloud<pcl::PointXYZ>::Ptr temp(new pcl::PointCloud<pcl::PointXYZ>);
+			result.resize(cloud->points.size());
+			result_sqr_distance.resize(result.size());
+			tree->setInputCloud(cloud);
+			tree->nearestKSearch(cloud->points[i], result.size(), result, result_sqr_distance);
+			for(int j = 0; j < result_sqr_distance.size(); j++)
+			{
+				if(result_sqr_distance[j] > min_distance*min_distance)
+				{
+					result.erase(result.begin() + j);
+					result_sqr_distance.erase(result_sqr_distance.begin() + j);
+					j -= 1;
+				}
+			}
+			if(result.size() == 0)
+			{
+				i++;
+				continue;
+			}
+			std::sort(result.begin(), result.end(), [](const int a, const int b) {return a > b; });
+			while(result.size() > 0)
+			{
+				temp->points.push_back(cloud->points[result[0]]);
+				cloud->points.erase(cloud->points.begin() + result[0]);
+				result.erase(result.begin() + 0);
+			}
+			clouds.push_back(temp);
+		}
+		std::sort(clouds.begin(), clouds.end(), [](const pcl::PointCloud<pcl::PointXYZ>::Ptr a, const pcl::PointCloud<pcl::PointXYZ>::Ptr b) {return a->points.size() > b->points.size(); });
+
+        std::cerr << " >> Done: " << tt.toc() << " ms\n\n";
+		if(cloud->size() == 2)
+		{
+			if(clouds[0]->points.size() < clouds[1]->points.size())
+			{
+				return clouds[1];
+			}
+		}
+        return clouds[0];
+    }
+	
 	PointXYZR pcd_to_XYZR(std::string filename)
 	{
 		PointXYZR test;
@@ -135,17 +185,15 @@ namespace myFunction{
 		return cloud;
 	}
 	template<class T>
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr XYZ_to_RGB(T cloud_in)
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr XYZ_to_XYZRGB(T cloud_in)
 	{
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_out (new pcl::PointCloud<pcl::PointXYZRGB>);
 		double min_Distance = cloud_in->points[0].getVector3fMap().norm();
 		double max_Distance = 0.0;
 
-		for(size_t i = 0; i < cloud_in->points.size(); i++)
-		{
-			max_Distance = fmax((double)(cloud_in->points[i].getVector3fMap().norm()), max_Distance);
-			min_Distance = fmin((double)(cloud_in->points[i].getVector3fMap().norm()), min_Distance);
-		}
+		max_Distance = getFarthestPoint(cloud_in, pcl::PointXYZ(0,0,0)).getVector3fMap().norm();
+		min_Distance = getNearestPoint(cloud_in, pcl::PointXYZ(0,0,0)).getVector3fMap().norm();
+
 		for(size_t i = 0; i < cloud_in->points.size(); i++)
 		{
 			pcl::PointXYZRGB point;
@@ -155,11 +203,13 @@ namespace myFunction{
 			uint8_t r;
 			r = ((point.getVector3fMap().norm() - min_Distance) * 255.0 / (max_Distance - min_Distance));
 			r = 255 - r;
-			uint32_t rgb = (static_cast<uint32_t>(r) << 16 |
-				static_cast<uint32_t>(r) << 8 | static_cast<uint32_t>(r));
+			uint32_t rgb = (static_cast<uint32_t>(r) << 16 | static_cast<uint32_t>(r) << 8 | static_cast<uint32_t>(r));
 			point.rgb = *reinterpret_cast<float*>(&rgb);
 			cloud_out->points.push_back (point);
 		}
+		cloud_out->width = (int) cloud_out->points.size();
+		cloud_out->height = 1;
+
 		return cloud_out;
 	}
 
@@ -200,20 +250,7 @@ namespace myFunction{
 
 		points_of_fix += 1;
 		std::vector<pcl::PointXYZRGB> y;
-		/*
-		double averageDistance = 0;
-		double averageDistanceCount = 0;
-		for(size_t h = 0; h < xyzrgb->points.size(); h++)
-		{
-			for(size_t i = 0; i < xyzrgb->points.size(); i++)
-			{
-				averageDistance += fabs((xyzrgb->points[h].getVector3fMap() - xyzrgb->points[i].getVector3fMap()).norm());
-				averageDistanceCount += 1;
-			}
-		}
-		averageDistance = averageDistance / averageDistanceCount / 2.0;
-		cout << "Average distance" << averageDistance << endl;
-	*/
+		
 		for(size_t h = 0; h < xyzrgb->points.size(); h++)
 		{
 			std::vector<pcl::PointXYZRGB> x;

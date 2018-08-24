@@ -64,13 +64,14 @@ typedef pcl::PointXYZ PointT;
 
 void pcl_viewer()
 {
-    
-    pcl::PCDReader reader;
+    myClass::Boundary boundary;
+    pcl::console::TicToc tt;
     pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
 
-	reader.read (filename, *cloud);
-
-    myClass::Boundary boundary;
+    std::cerr << "Loading point cloud...", tt.tic();
+    pcl::io::loadPCDFile (filename, *cloud);
+    std::cerr << " >> Done: " << tt.toc() << " ms\n";
+    std::cerr << "Point cloud: " << cloud->points.size() << " points" << std::endl << std::endl;
 
     Vector3f cameraAt = Vector3f(0.0, 0.0, 0.0);
     double camera_Height = sqrt(3.0)*2.0;
@@ -93,14 +94,20 @@ void pcl_viewer()
     boundary.setLiDarParameter(LiDar_Height_Offset, LiDar_Horizontal_Offset, focal_Leftength_Offset);
     boundary.setBound(object_X, object_Y, object_Height, object_Width);
 
-    cloud = boundary.division(cloud);
-    cloud = myFunction::getMaxPart(cloud);
-
+    std::cerr << "Dividing point cloud...", tt.tic();
+    cloud = boundary.division<PointT>(cloud);
+    std::cerr << " >> Done: " << tt.toc() << " ms\n";
+    std::cerr << "Point cloud after division: " << cloud->points.size() << " points" << std::endl << std::endl;
+    
+    //cloud = myFunction::getMaxPart(cloud);
+    
     viewer.reset(new pcl::visualization::PCLVisualizer ("3D Viewer"));
     
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_view = myFunction::XYZ_to_RGB(cloud);
+    std::cerr << "XYZ to XYZRGB...", tt.tic();
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_view = myFunction::XYZ_to_XYZRGB(cloud);
     pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud_view);
     viewer->addPointCloud<pcl::PointXYZRGB> (cloud_view, rgb, filename);
+    std::cerr << " >> Done: " << tt.toc() << " ms\n";
 
     viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*) NULL);
     //viewer->addCoordinateSystem( 3.0, "coordinate" );

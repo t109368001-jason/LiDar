@@ -26,7 +26,7 @@ endforeach(file)
 
 #設定變數
 set(PROJECT_NAME pcl_viewer)
-set(SOURCE_FILE ../pcd_XYZR_XYZRGB.cpp)
+set(SOURCE_FILE main.cpp)
 set(SOURCE_FILE main.cpp CACHE FILEPATH "SOURCE_FILE")  #cmake -D SOURCE_FILE=xxx ..
 set(BUILD_EXAMPLE OFF)
 set(BUILD_EXAMPLE OFF CACHE BOOL "BUILD_EXAMPLE")
