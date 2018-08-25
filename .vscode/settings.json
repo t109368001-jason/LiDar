@@ -52,6 +52,10 @@
         "numeric": "cpp",
         "sstream": "cpp",
         "tuple": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "core": "cpp",
+        "numericaldiff": "cpp",
+        "list": "cpp",
+        "bitset": "cpp"
     }
 }

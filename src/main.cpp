@@ -1,28 +1,49 @@
 
 #include <iostream>
-#include <cmath>
-#include <pcl/console/parse.h>
-#include <pcl/io/vtk_lib_io.h>
 #include <pcl/visualization/pcl_visualizer.h>
+//#include <cmath>
+//#include <pcl/io/vtk_lib_io.h>
 #include <pcl/io/pcd_io.h>
-#include <pcl/io/ply_io.h>
-#include <pcl/point_types.h>
-#include <pcl/kdtree/kdtree_flann.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/common/common_headers.h>
-#include <thread>
-#include <pcl/io/vlp_grabber.h>
+//#include <pcl/io/ply_io.h>
+//#include <pcl/point_types.h>
+//#include <pcl/kdtree/kdtree_flann.h>
+//#include <pcl/features/normal_3d.h>
+//#include <pcl/common/common_headers.h>
+//#include <thread>
+//#include <pcl/io/vlp_grabber.h>
 #include <pcl/console/time.h>
-#include "../include/function.h"
-#include "../include/boundary.h"
-#include "../include/test.h"
+#include <boost/format.hpp>
 #include "../include/args.hxx"
+#include "../include/boundary.h"
+#include "../include/function.h"
+//#include "../include/test.h"
 
 using namespace std;
 using namespace pcl;
 using namespace pcl::console;
 using namespace pcl::visualization;
 using namespace Eigen;
+
+class MicroStopwatch
+{
+public:
+    boost::posix_time::ptime tictic;
+    boost::posix_time::ptime toctoc;
+    void tic()
+    {
+        tictic = boost::posix_time::microsec_clock::local_time ();
+    }
+    int64_t toc()
+    {
+        toctoc = boost::posix_time::microsec_clock::local_time ();
+        return (toctoc - tictic).total_microseconds();
+    }
+    std::string toc_string()
+    {
+        toctoc = boost::posix_time::microsec_clock::local_time ();
+        return myFunction::commaFix((toctoc - tictic).total_microseconds());
+    }
+};
 
 boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
 
@@ -46,16 +67,16 @@ typedef pcl::PointXYZ PointT;
 
 void pcl_viewer()
 {
-    myClass::Boundary boundary;
-    pcl::console::TicToc tt;
+    myClass::Boundary<PointT> boundary;
+    MicroStopwatch tt;
     pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
 
     std::cerr << "Loading point cloud...", tt.tic();
     if(pcl::io::loadPCDFile (filename, *cloud) == -1)return;
-    std::cerr << " >> Done: " << tt.toc() << " ms\n";
-    std::cerr << "Point cloud: " << cloud->points.size() << " points" << std::endl << std::endl;
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << "Point cloud: " << cloud->points.size() << " points" << std::endl;
 
-    Vector3f cameraAt = Vector3f(0.0, 0.0, 0.0);
+    PointT cameraAt = PointT(0.0, 0.0, 0.0);
     double camera_Height = sqrt(3.0)*2.0;
     double camera_Width = sqrt(3.0)*2.0;
     double camera_Vertical_FOV = 60.0 * M_PI / 180.0;
@@ -76,26 +97,34 @@ void pcl_viewer()
     boundary.setLiDarParameter(LiDar_Height_Offset, LiDar_Horizontal_Offset, focal_Leftength_Offset);
     boundary.setBound(object_X, object_Y, object_Height, object_Width);
 
-    std::cerr << "Dividing point cloud...", tt.tic();
-    cloud = boundary.division<PointT>(cloud);
-    std::cerr << " >> Done: " << tt.toc() << " ms\n";
-    std::cerr << "Point cloud after division: " << cloud->points.size() << " points" << std::endl << std::endl;
+    std::cerr << boundary.LiDar_Up_Angle * 180 / M_PI << std::endl;
+    std::cerr << boundary.LiDar_Down_Angle * 180 / M_PI << std::endl;
+    std::cerr << boundary.LiDar_Left_Angle * 180 / M_PI << std::endl;
+    std::cerr << boundary.LiDar_Right_Angle * 180 / M_PI << std::endl;
 
-/*
-    std::cerr << "test...", tt.tic();
-    for(int i = 0; i < 40; i++)
+    ////////////////////////////////////////////////////////////////
+    std::cerr << "test1...", tt.tic();
+    for(int i = 0; i < 1; i++)
     {
-        auto a = myFunction::getFarthestPoint(cloud);
-    }
-    std::cerr << " >> Done: " << tt.toc() << " ms\n";
+        std::vector<pcl::PointCloud<PointT>::Ptr> clouds;
+        auto xx = myFunction::loadMultiPCD("/home/xian-jie/github/LiDar/file/list.txt", clouds);
+        
+	}
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     return;
-    */
+    //////////////////////////////////////////////////////////////////*/
+
+    std::cerr << "Dividing point cloud...", tt.tic();
+    cloud = boundary.division(cloud);
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << "Point cloud after division: " << myFunction::commaFix(cloud->points.size()) << " points" << std::endl << std::endl;
+
     viewer.reset(new pcl::visualization::PCLVisualizer ("3D Viewer"));
     
     std::cerr << "XYZ to XYZRGB...", tt.tic();
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_view = myFunction::XYZ_to_XYZRGB(cloud);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_view = myFunction::XYZ_to_XYZRGB<PointT>(cloud);
     pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud_view);
-    std::cerr << " >> Done: " << tt.toc() << " ms\n";
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
 
     viewer->addPointCloud<pcl::PointXYZRGB> (cloud_view, rgb, filename);
 

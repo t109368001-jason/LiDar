@@ -2,6 +2,7 @@
 #include <mutex>
     
 #include <pcl/point_types.h>
+#include "point_type.h"
 
 namespace myFunction
 {
@@ -246,5 +247,4 @@ namespace myFunction
 
 		return xyzrgb;
 	}
-
 }

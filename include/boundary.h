@@ -2,23 +2,20 @@
 #define BOUNDARY_H_
 
 #include <iostream>
-#include <cmath>
-#include <thread>
-#include <numeric>
 #include <future>
-#include <type_traits>
-#include <pcl/console/time.h>
-#include "function.h"
+#include <pcl/point_cloud.h>
+#include "../include/function.h"
 
 using namespace std;
 using namespace Eigen;
 
 namespace myClass
 {
+	template<typename PointT>
 	class Boundary
 	{
 	public:
-		Vector3f cameraAt;
+		PointT cameraAt;
 		string camera_O;
 		double camera_Height;
 		double camera_Width;
@@ -58,7 +55,7 @@ namespace myClass
 			this->BoundIsSet = true;
 		}
 
-		void setCameraParameter(Vector3f cameraAt, string camera_O, double camera_Height, double camera_Width, double camera_Vertical_FOV, double camera_Horizontal_FOV)
+		void setCameraParameter(PointT cameraAt, string camera_O, double camera_Height, double camera_Width, double camera_Vertical_FOV, double camera_Horizontal_FOV)
 		{
 			this->cameraAt = cameraAt;
 			this->camera_O = camera_O;
@@ -129,20 +126,29 @@ namespace myClass
 			this->LiDar_Left_Angle = object_Left_Angle;
 			this->LiDar_Right_Angle = object_Right_Angle;
 
+			//修正角度, 水平右0 左180 垂直上0 下180
+			this->LiDar_Up_Angle = M_PI_2 - this->LiDar_Up_Angle;
+			this->LiDar_Down_Angle = M_PI_2 - this->LiDar_Down_Angle;
+			this->LiDar_Left_Angle = M_PI_2 - this->LiDar_Left_Angle;
+			this->LiDar_Right_Angle = M_PI_2 - this->LiDar_Right_Angle;
+			//修正LiDar水平原點誤差
+			this->LiDar_Left_Angle -= this->LiDar_Horizontal_Offset;
+			this->LiDar_Right_Angle -= this->LiDar_Horizontal_Offset;
+
 			BoundIsSet = true;
 		}
 
-		template<typename RandomIt, typename PointT>
-		std::vector<PointT> divisionPart(int division_num, RandomIt beg, RandomIt end)
+		template<typename RandomIt>
+		std::vector<PointT, Eigen::aligned_allocator<PointT>> divisionPart(int division_num, RandomIt beg, RandomIt end)
 		{
 			auto len = end - beg;
 
 			if (len < division_num)
 			{
-				std::vector<PointT> out;
+				std::vector<PointT, Eigen::aligned_allocator<PointT>> out;
 				for(auto it = beg; it != end; ++it)
 				{
-					if((!this->keep_Inside) ^ this->pointIsInside((*it).getVector3fMap()))
+					if((!this->keep_Inside) ^ this->pointIsInside((*it)))
 					{
 						out.push_back(*it);
 					}
@@ -152,9 +158,9 @@ namespace myClass
 
 			auto mid = beg + len/2;
 			
-			auto handle = std::async(std::launch::async, &Boundary::divisionPart<RandomIt, PointT>, this, division_num, beg, mid);
+			auto handle = std::async(std::launch::async, &Boundary::divisionPart<RandomIt>, this, division_num, beg, mid);
 
-			auto out(divisionPart<RandomIt, PointT>(division_num, mid, end));
+			auto out(divisionPart<RandomIt>(division_num, mid, end));
 
 			auto out1(handle.get());
 			
@@ -163,12 +169,8 @@ namespace myClass
 			return out;
 		}
 
-		template<typename PointT>
 		typename pcl::PointCloud<PointT>::Ptr division(typename pcl::PointCloud<PointT>::Ptr input, bool keep_Inside = true)
 		{
-			typename pcl::PointCloud<PointT>::Ptr cloud(new typename pcl::PointCloud<PointT>);
-			this->keep_Inside = keep_Inside;
-			int division_num = std::ceil(input->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
 			if(!BoundIsSet)
 			{
 				std::cerr << "\nBound parameter is not set\n";
@@ -180,9 +182,12 @@ namespace myClass
 				return input;
 			}
 
-			auto points = divisionPart<decltype(input->points.begin()), PointT>(division_num, input->points.begin(), input->points.end());
-
-			std::copy(points.begin(), points.end(), std::back_inserter(cloud->points));
+			typename pcl::PointCloud<PointT>::Ptr cloud(new typename pcl::PointCloud<PointT>);
+			this->keep_Inside = keep_Inside;
+			
+			int division_num = std::ceil(input->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+			
+			cloud->points = divisionPart(division_num, input->points.begin(), input->points.end());
 
 			cloud->width = (int) cloud->points.size();
 			cloud->height = 1;
@@ -190,35 +195,36 @@ namespace myClass
 		}
 
 	private:
-		bool pointIsInside(Vector3f point)
+		bool pointIsInside(PointT point)
 		{
-			Vector3f camera_to_point;
-			camera_to_point = -this->cameraAt + point;		//計算相機到點之向量
+			PointT camera_to_point;
+			//修正角度, 水平右正左負, 垂直上正下負
+			camera_to_point.x = -cameraAt.x + point.x;
+			camera_to_point.y = -cameraAt.y + point.y;
+			camera_to_point.z = -cameraAt.z + point.z;
 
 			//計算camera_to_point向量之水平及垂直角度
-			double point_Vertical_Angle = acos(camera_to_point.dot(Eigen::Vector3f::UnitZ()) / camera_to_point.norm() / Eigen::Vector3f::UnitZ().norm());
-			double point_Horizontal_Angle = atan(camera_to_point[1] / camera_to_point[0]);
+			double point_Vertical_Angle = acos(camera_to_point.z / myFunction::norm(camera_to_point));
+			double point_Horizontal_Angle = atan(camera_to_point.y / camera_to_point.x);
 
-			//修正水平角度, 因 -M_PI_2 <= atan <= M_PI_2
-			if (camera_to_point[0] < 0.0)
-				point_Horizontal_Angle += M_PI;
-			
-			//修正角度, 水平右正左負, 垂直上正下負
-			point_Vertical_Angle = M_PI_2 - point_Vertical_Angle;
-			point_Horizontal_Angle = M_PI_2 - point_Horizontal_Angle;
-
-			//修正LiDar水平原點誤差
-			point_Horizontal_Angle += this->LiDar_Horizontal_Offset;
-
-			//修正數值範圍 -M_PI ~ M_PI
-			if(point_Horizontal_Angle > M_PI) point_Horizontal_Angle -= M_PI * 2.0;
-			if(point_Horizontal_Angle < -M_PI) point_Horizontal_Angle += M_PI * 2.0;
+			//修正水平角度, 因 -M_PI_2 <= atan <= M_PI_2  >> 
+			if (camera_to_point.x < 0.0)
+			{
+				if(camera_to_point.y < 0.0)
+				{
+					point_Horizontal_Angle -= M_PI;
+				}
+				else
+				{
+					point_Horizontal_Angle += M_PI;
+				}
+			}
 
 			//檢查是否超出邊界
-			if(point_Vertical_Angle > this->LiDar_Up_Angle){ return false; }
-			if(point_Vertical_Angle < this->LiDar_Down_Angle){ return false; }
-			if(point_Horizontal_Angle > this->LiDar_Right_Angle){ return false; }
-			if(point_Horizontal_Angle < this->LiDar_Left_Angle){ return false; }
+			if(point_Horizontal_Angle < this->LiDar_Right_Angle){ return false; }
+			if(point_Horizontal_Angle > this->LiDar_Left_Angle){ return false; }
+			if(point_Vertical_Angle < this->LiDar_Up_Angle){ return false; }
+			if(point_Vertical_Angle > this->LiDar_Down_Angle){ return false; }
 
 			return true;
 		}
