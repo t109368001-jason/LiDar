@@ -26,8 +26,8 @@ endforeach(file)
 
 #設定變數
 set(PROJECT_NAME pcl_viewer)
-set(SOURCE_FILE main.cpp)
-set(SOURCE_FILE main.cpp CACHE FILEPATH "SOURCE_FILE")  #cmake -D SOURCE_FILE=xxx ..
+set(SOURCE_FILE src/main.cpp)
+set(SOURCE_FILE src/main.cpp CACHE FILEPATH "SOURCE_FILE")  #cmake -D SOURCE_FILE=xxx ..
 set(BUILD_EXAMPLE OFF)
 set(BUILD_EXAMPLE OFF CACHE BOOL "BUILD_EXAMPLE")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -53,12 +53,26 @@ add_executable(${PROJECT_NAME} ${SOURCE_FILE})          #設定執行檔名稱�
 target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES}) #連結函式庫
 
 if(BUILD_EXAMPLE)   #設定其他範例執行檔
-    add_executable(pcd_viewer ${CMAKE_BINARY_DIR}/../example/pcd_viewer.cpp)
+    add_executable(pcd_viewer ${CMAKE_BINARY_DIR}/../src/pcd_viewer.cpp)
     target_link_libraries(pcd_viewer ${PCL_LIBRARIES})
-    add_executable(pcd_poisson_viewer ${CMAKE_BINARY_DIR}/../example/pcd_poisson_viewer.cpp)
+    add_executable(pcd_poisson_viewer ${CMAKE_BINARY_DIR}/../src/pcd_poisson_viewer.cpp)
     target_link_libraries(pcd_poisson_viewer ${PCL_LIBRARIES})
-    add_executable(pcap_viewer ${CMAKE_BINARY_DIR}/../example/pcap_viewer.cpp)
+    add_executable(pcap_viewer ${CMAKE_BINARY_DIR}/../src/pcap_viewer.cpp)
     target_link_libraries(pcap_viewer ${PCL_LIBRARIES})
-    add_executable(pcd_XYZR_XYZRGB ${CMAKE_BINARY_DIR}/../example/pcd_XYZR_XYZRGB.cpp)
-    target_link_libraries(pcd_XYZR_XYZRGB ${PCL_LIBRARIES})
 endif()
+
+#cmake_minimum_required(VERSION 2.8)
+## CUDA PACKAGE
+#find_package(CUDA REQUIRED)
+#set(CUDA_SEPARABLE_COMPILATION ON)
+#set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+#set(CUDA_HOST_COMPILER clang++)
+## COMPILE CU FILES
+#file(GLOB CUDA_FILES ${CMAKE_SOURCE_DIR}/include *.cu)
+#list( APPEND CUDA_NVCC_FLAGS "-gencode arch=compute_30,code=sm_30; -std=c++17")
+#CUDA_COMPILE(CU_O ${CUDA_FILES})
+## SETUP FOR CPP FILES
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+#include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+## COMPILE AND LINK
+#cuda_add_executable(${PROJECT_NAME}_cuda ${SOURCE_FILE} ${CU_O})

@@ -40,7 +40,6 @@ namespace myClass
 		bool BoundIsSet;
 
 		bool keep_Inside;
-		int division_num;
 
 		Boundary()
 		{
@@ -133,65 +132,43 @@ namespace myClass
 			BoundIsSet = true;
 		}
 
-		template<typename PointT>
-		typename pcl::PointCloud<PointT>::Ptr divisionPart(typename pcl::PointCloud<PointT>::Ptr cloud)
+		template<typename RandomIt, typename PointT>
+		std::vector<PointT> divisionPart(int division_num, RandomIt beg, RandomIt end)
 		{
-			auto beg = cloud->points.begin();
-			auto end = cloud->points.end();
 			auto len = end - beg;
 
-			if (len < this->division_num)
+			if (len < division_num)
 			{
-				typename pcl::PointCloud<PointT>::Ptr cloud_out(new typename pcl::PointCloud<PointT>);
+				std::vector<PointT> out;
 				for(auto it = beg; it != end; ++it)
 				{
 					if((!this->keep_Inside) ^ this->pointIsInside((*it).getVector3fMap()))
 					{
-						cloud_out->points.push_back(*it);
+						out.push_back(*it);
 					}
 				}
-				return cloud_out;
+				return out;
 			}
 
 			auto mid = beg + len/2;
 			
-			typename pcl::PointCloud<PointT>::Ptr cloud1(new typename pcl::PointCloud<PointT>);
-			typename pcl::PointCloud<PointT>::Ptr cloud2(new typename pcl::PointCloud<PointT>);
-			
-			for(auto it = beg; it != mid; ++it)
-			{
-				cloud1->points.push_back(*it);
-			}
-			for(auto it = mid; it != end; ++it)
-			{
-				cloud2->points.push_back(*it);
-			}
-			
-			auto handle = std::async(std::launch::async, &Boundary::divisionPart<PointT>, this, cloud1);
+			auto handle = std::async(std::launch::async, &Boundary::divisionPart<RandomIt, PointT>, this, division_num, beg, mid);
 
-			typename pcl::PointCloud<PointT>::Ptr cloud_out(divisionPart<PointT>(cloud2));
+			auto out(divisionPart<RandomIt, PointT>(division_num, mid, end));
 
-			typename pcl::PointCloud<PointT>::Ptr out1(handle.get());
-			/*
-			for(auto it = out1->points.begin(); it != out1->points.end(); ++it)
-			{
-				cloud_out->points.push_back(*it);
-			}
-			*/
-			for(int i = 0; i < out1->points.size(); i++)
-			{
-				cloud_out->points.push_back(out1->points[i]);
-			}
-			cloud_out->width = (int) cloud_out->points.size();
-			cloud_out->height = 1;
-			return cloud_out;
+			auto out1(handle.get());
+			
+			std::copy(out1.begin(),  out1.end(), std::back_inserter(out));
+
+			return out;
 		}
 
 		template<typename PointT>
 		typename pcl::PointCloud<PointT>::Ptr division(typename pcl::PointCloud<PointT>::Ptr input, bool keep_Inside = true)
 		{
+			typename pcl::PointCloud<PointT>::Ptr cloud(new typename pcl::PointCloud<PointT>);
 			this->keep_Inside = keep_Inside;
-			this->division_num = std::ceil(input->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+			int division_num = std::ceil(input->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
 			if(!BoundIsSet)
 			{
 				std::cerr << "\nBound parameter is not set\n";
@@ -203,7 +180,13 @@ namespace myClass
 				return input;
 			}
 
-			return divisionPart<PointT>(input);
+			auto points = divisionPart<decltype(input->points.begin()), PointT>(division_num, input->points.begin(), input->points.end());
+
+			std::copy(points.begin(), points.end(), std::back_inserter(cloud->points));
+
+			cloud->width = (int) cloud->points.size();
+			cloud->height = 1;
+			return cloud;
 		}
 
 	private:

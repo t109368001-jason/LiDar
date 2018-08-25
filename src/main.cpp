@@ -13,9 +13,10 @@
 #include <thread>
 #include <pcl/io/vlp_grabber.h>
 #include <pcl/console/time.h>
-#include "include/function.h"
-#include "include/boundary.h"
-#include "include/test.h"
+#include "../include/function.h"
+#include "../include/boundary.h"
+#include "../include/test.h"
+#include "../include/args.hxx"
 
 using namespace std;
 using namespace pcl;
@@ -25,39 +26,20 @@ using namespace Eigen;
 
 boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
 
+int fps = 2;
+bool viewer_pause = false;
 std::string filename;
-uint64_t startTime;
-uint64_t startTime2;
 
 void keyboardEventOccurred(const KeyboardEvent& event, void* nothing)
 {
-  if (event.getKeySym() == "y" && event.keyDown()) // Flat shading
-  {
-    viewer->setShapeRenderingProperties(PCL_VISUALIZER_SHADING,
-                                        PCL_VISUALIZER_SHADING_FLAT, filename);
-  }
-  else if (event.getKeySym() == "t" && event.keyDown()) // Gouraud shading
-  {
-    viewer->setShapeRenderingProperties(PCL_VISUALIZER_SHADING,
-                                        PCL_VISUALIZER_SHADING_GOURAUD, filename);
-  }
-  else if (event.getKeySym() == "n" && event.keyDown()) // Phong shading
-  {
-    viewer->setShapeRenderingProperties(PCL_VISUALIZER_SHADING,
-                                        PCL_VISUALIZER_SHADING_PHONG, filename);
-  }
-}
-
-void timer1()
-{
-	while(false)
-	{
-		if((clock() - startTime) > 1000000)
-		{
-			startTime = clock();
-			std::cout << filename << std::endl;
-		}
-	}
+    switch(event.getKeyCode())
+    {
+        case ' ':
+            viewer_pause = !viewer_pause;
+            break;
+        default:
+            std::cerr << "Keyboard pressed: " << (int)(event.getKeyCode()) << std::endl;
+    }
 }
 
 typedef pcl::PointXYZ PointT;
@@ -69,7 +51,7 @@ void pcl_viewer()
     pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
 
     std::cerr << "Loading point cloud...", tt.tic();
-    pcl::io::loadPCDFile (filename, *cloud);
+    if(pcl::io::loadPCDFile (filename, *cloud) == -1)return;
     std::cerr << " >> Done: " << tt.toc() << " ms\n";
     std::cerr << "Point cloud: " << cloud->points.size() << " points" << std::endl << std::endl;
 
@@ -98,16 +80,24 @@ void pcl_viewer()
     cloud = boundary.division<PointT>(cloud);
     std::cerr << " >> Done: " << tt.toc() << " ms\n";
     std::cerr << "Point cloud after division: " << cloud->points.size() << " points" << std::endl << std::endl;
-    
-    //cloud = myFunction::getMaxPart(cloud);
-    
+
+/*
+    std::cerr << "test...", tt.tic();
+    for(int i = 0; i < 40; i++)
+    {
+        auto a = myFunction::getFarthestPoint(cloud);
+    }
+    std::cerr << " >> Done: " << tt.toc() << " ms\n";
+    return;
+    */
     viewer.reset(new pcl::visualization::PCLVisualizer ("3D Viewer"));
     
     std::cerr << "XYZ to XYZRGB...", tt.tic();
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_view = myFunction::XYZ_to_XYZRGB(cloud);
     pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud_view);
-    viewer->addPointCloud<pcl::PointXYZRGB> (cloud_view, rgb, filename);
     std::cerr << " >> Done: " << tt.toc() << " ms\n";
+
+    viewer->addPointCloud<pcl::PointXYZRGB> (cloud_view, rgb, filename);
 
     viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*) NULL);
     //viewer->addCoordinateSystem( 3.0, "coordinate" );
@@ -120,19 +110,37 @@ void pcl_viewer()
 
 int main(int argc, char * argv[])
 {
+    args::ArgumentParser parser("This is a test program.", "This goes after the options.");
+    args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
+    args::Group group(parser, "This group is all required:", args::Group::Validators::All);
 
-    std::vector<int> file_indices = pcl::console::parse_file_extension_argument (argc, argv, ".pcd");
-    if (file_indices.empty())
+    args::ValueFlag<std::string> input(group, "CLOUD_IN", "input PointCloud path", {'i', "if"});
+
+    try
     {
-    PCL_ERROR ("Please provide file as argument\n");
-    return 1;
+        parser.ParseCLI(argc, argv);
     }
-    filename = argv[file_indices[0]];
+    catch (args::Help)
+    {
+        std::cout << parser;
+        return 0;
+    }
+    catch (args::ParseError e)
+    {
+        std::cerr << e.what() << std::endl;
+        parser.Help(std::cerr);
+        return 1;
+    }
+    catch (args::ValidationError e)
+    {
+        std::cerr << e.what() << std::endl;
+        parser.Help(std::cerr);
+        return 1;
+    }
 
-    std::thread t1(timer1);
-    std::thread t2(pcl_viewer);
-    t1.join();
-    t2.join();
-    while(1);
+    filename = args::get(input);
+
+    pcl_viewer();
+
     return 0;
 }
