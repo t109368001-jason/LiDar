@@ -17,7 +17,7 @@ namespace myClass
 			typename pcl::PointCloud<PointT>::Ptr background;
 			pcl::octree::OctreePointCloudChangeDetector<PointT> *octree;
 		public:
-			void setBackground(typename pcl::PointCloud<PointT>::Ptr background, double resolution)
+			void setBackground(typename pcl::PointCloud<PointT>::Ptr background, double resolution = 1)
 			{
 				this->background = background;
 				
@@ -93,10 +93,12 @@ namespace myClass
 			string camera_O;
 			double camera_Height;
 			double camera_Width;
-			double camera_Vertical_FOV;
-			double camera_Horizontal_FOV;
-			double camera_Vertical_Depth;
-			double camera_Horizontal_Depth;
+			//double camera_Vertical_FOV;
+			//double camera_Horizontal_FOV;
+			double camera_FOV;
+			//double camera_Vertical_Depth;
+			//double camera_Horizontal_Depth;
+			double camera_Depth;
 			bool cameraParameterIsSet;
 
 			double LiDar_Height_Offset;
@@ -123,16 +125,18 @@ namespace myClass
 				BoundIsSet = false;
 			}
 
-			int setCameraParameter(string camera_O, double camera_Height, double camera_Width, double camera_Vertical_FOV, double camera_Horizontal_FOV)
+			//int setCameraParameter(string camera_O, double camera_Height, double camera_Width, double camera_Vertical_FOV, double camera_Horizontal_FOV)
+			int setCameraParameter(string camera_O, double camera_Width, double camera_Height, double camera_FOV)
 			{
 				this->camera_O = camera_O;
-				this->camera_Height = camera_Height;
 				this->camera_Width = camera_Width;
-				this->camera_Vertical_FOV = camera_Vertical_FOV;
-				this->camera_Horizontal_FOV = camera_Horizontal_FOV;
-				this->camera_Vertical_Depth = (camera_Height/2.0) / tan(camera_Vertical_FOV/2.0);		//計算深度, 計算用
-				this->camera_Horizontal_Depth = (camera_Width/2.0) / tan(camera_Horizontal_FOV/2.0);		//計算深度, 計算用
-
+				this->camera_Height = camera_Height;
+				//this->camera_Horizontal_FOV = camera_Horizontal_FOV;
+				//this->camera_Vertical_FOV = atan((camera_Height/2.0)/((camera_Width/2.0)/tan(camera_Horizontal_FOV/2.0)))*2.0;
+				//this->camera_Vertical_Depth = (camera_Height/2.0) / tan(camera_Vertical_FOV/2.0);		//計算深度, 計算用
+				//this->camera_Horizontal_Depth = (camera_Width/2.0) / tan(camera_Horizontal_FOV/2.0);		//計算深度, 計算用
+				this->camera_FOV = camera_FOV;
+				this->camera_Depth = (camera_Width/2.0) / tan(camera_FOV/2.0);
 				cameraParameterIsSet = true;
 				BoundIsSet = false;				//須重新計算邊界
 				return 0;
@@ -185,10 +189,14 @@ namespace myClass
 				double object_Right = object_Left + object_Width;
 				
 				//將邊界轉換為角度
-				double object_Up_Angle = atan(object_Up / this->camera_Vertical_Depth);
-				double object_Down_Angle = atan(object_Down / this->camera_Vertical_Depth);
-				double object_Left_Angle = atan(object_Left / this->camera_Horizontal_Depth);
-				double object_Right_Angle = atan(object_Right / this->camera_Horizontal_Depth);
+				//double object_Up_Angle = atan(object_Up / this->camera_Vertical_Depth);
+				//double object_Down_Angle = atan(object_Down / this->camera_Vertical_Depth);
+				//double object_Left_Angle = atan(object_Left / this->camera_Horizontal_Depth);
+				//double object_Right_Angle = atan(object_Right / this->camera_Horizontal_Depth);
+				double object_Up_Angle = atan(object_Up / this->camera_Depth);
+				double object_Down_Angle = atan(object_Down / this->camera_Depth);
+				double object_Left_Angle = atan(object_Left / this->camera_Depth);
+				double object_Right_Angle = atan(object_Right / this->camera_Depth);
 				
 				//將邊界的角度以LiDar的高低差和最佳化焦距修正, 修正後的值在等於焦距時無誤差
 				if(this->LiDar_Height_Offset == 0)
@@ -292,9 +300,9 @@ namespace myClass
 				return cloud;
 			}
 
-			typename pcl::PointCloud<PointT>::Ptr easyDivision(typename pcl::PointCloud<PointT>::Ptr input, double H_FOV, double V_FOV, double offset = 0, bool keep_Inside = true)
+			typename pcl::PointCloud<PointT>::Ptr easyDivision(typename pcl::PointCloud<PointT>::Ptr input, double H_FOV, double offset = 0, bool keep_Inside = true)
 			{
-				if(this->setCameraParameter("UL", 1, 1, V_FOV, H_FOV) == -1) return input;
+				if(this->setCameraParameter("UL", 16, 9, H_FOV) == -1) return input;
 				if(this->setLiDarParameter(offset) == -1) return input;
 				if(this->setBound(0, 0, 1, 1) == -1) return input;
 

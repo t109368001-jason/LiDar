@@ -4,3 +4,8 @@
 ../file/1534128682089346.pcd
 
 14156218
+
+./bin/pcl_viewer -i ../../../../Documents/20180915_235843.bag -b ../file/20180915_164916_backgroundCloud.pcd
+
+sudo ./darknet detector test cfg/coco.data cfg/yolov3.cfg yolov3.weights -dont_show -save_labels
+

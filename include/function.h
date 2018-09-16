@@ -3,12 +3,14 @@
 
 #include <iostream>
 #include <future>
+#include <librealsense2/rs.hpp>
 #include <pcl/io/ply_io.h>
 #include <pcl/io/vtk_lib_io.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/surface/poisson.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/octree/octree_pointcloud_changedetector.h>
+#include "../include/date.h"
 
 using namespace std;
 
@@ -563,6 +565,31 @@ namespace myFunction
 
 #pragma endregion offsetToOrigin
 	
+#pragma region points_to_pcl
+
+	template<typename PointT>
+	typename pcl::PointCloud<PointT>::Ptr points_to_pcl(const rs2::points& points)
+	{
+		typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
+
+		auto sp = points.get_profile().as<rs2::video_stream_profile>();
+		cloud->width = sp.width();
+		cloud->height = sp.height();
+		cloud->is_dense = false;
+		cloud->points.resize(points.size());
+		auto ptr = points.get_vertices();
+		for (auto& p : cloud->points)
+		{
+			p.x = ptr->x;
+			p.y = ptr->y;
+			p.z = ptr->z;
+			ptr++;
+		}
+
+		return cloud;
+	}
+#pragma endregion points_to_pcl
+
 	template<typename PointT>
 	typename pcl::PointCloud<PointT>::Ptr getChanges(typename pcl::PointCloud<PointT>::Ptr cloud1, typename pcl::PointCloud<PointT>::Ptr cloud2, double resolution)
 	{
@@ -596,6 +623,16 @@ namespace myFunction
 		viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
 		viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
 	}
+	void updateCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::string name)
+	{
+		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
+
+            if( !viewer->updatePointCloud<pcl::PointXYZRGB> (cloud, rgb, name))
+            {
+                viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
+				viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
+            }
+	}
 
 	template<typename PointT>
 	double getSimilarity(typename pcl::PointCloud<PointT>::Ptr cloud1, typename pcl::PointCloud<PointT>::Ptr cloud2, double resolution)
@@ -611,6 +648,51 @@ namespace myFunction
         octree.getPointIndicesFromNewVoxels (newPointIdxVector);
 
         return 1 - ((double)newPointIdxVector.size() / (double)cloud2->points.size());
+	}
+
+	std::string millisecondToString(std::chrono::milliseconds &duration, bool isFileName = true)
+	{
+		std::ostringstream stream;
+		std::chrono::time_point<std::chrono::system_clock> tp = std::chrono::time_point<std::chrono::system_clock>(duration);
+		tp += std::chrono::hours(8);
+		auto dp = date::floor<date::days>(tp);  // dp is a sys_days, which is a
+										// type alias for a C::time_point
+		auto date = date::year_month_day{dp};
+		auto time = date::make_time(std::chrono::duration_cast<std::chrono::milliseconds>(tp-dp));
+		stream << std::setfill('0') << std::setw(4) << date.year().operator int();
+		if(!isFileName) stream << '/';
+		stream << std::setfill('0') << std::setw(2) << date.month().operator unsigned int();
+		if(!isFileName) stream << '/';
+		stream << std::setfill('0') << std::setw(2) << date.day().operator unsigned int();
+		if(!isFileName) stream << ' ';
+		else stream << '_';
+		stream << std::setfill('0') << std::setw(2) << time.hours().count();
+		if(!isFileName) stream << ':';
+		stream << std::setfill('0') << std::setw(2) << time.minutes().count();
+		if(!isFileName) stream << ':';
+		stream << std::setfill('0') << std::setw(2) << time.seconds().count();
+		if(!isFileName) stream << '.';
+		else stream << '_';
+		stream << std::setfill('0') << std::setw(3) << time.subseconds().count();
+		return stream.str();
+	}
+
+	bool fileExists(std::string &filename)
+	{
+		struct stat buffer;
+		return stat(filename.c_str(), &buffer) == 0;
+	}
+
+	std::chrono::milliseconds bagFileNameToMilliseconds(std::string &bagFileName)
+	{
+		if(fileExists(bagFileName))
+		{
+			std::tm tm;
+			std::istringstream ss(bagFileName.substr(bagFileName.rfind('/') + 1, bagFileName.rfind('.')-bagFileName.rfind('/')-1));
+			ss >> std::get_time(&tm,"%Y%m%d_%H%M%S");
+			return std::chrono::milliseconds(std::mktime(&tm)*1000);
+		}
+		return std::chrono::milliseconds(0);
 	}
 
 #pragma endregion testing

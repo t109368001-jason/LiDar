@@ -41,6 +41,14 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
 
 project(${PROJECT_NAME})
 
+set(LIBREALSENSE_INSTALLATION_DIR "" CACHE PATH "librealsense installation directory")
+if(LIBREALSENSE_INSTALLATION_DIR STREQUAL "")
+    find_package(realsense2 REQUIRED)
+else()
+    find_package(realsense2 REQUIRED PATHS ${LIBREALSENSE_INSTALLATION_DIR} NO_DEFAULT_PATH)
+endif()
+
+
 find_package(PCL 1.2 REQUIRED)  #尋找PCL函式庫
 
 include_directories(${PCL_INCLUDE_DIRS})
@@ -50,7 +58,7 @@ add_definitions(${PCL_DEFINITIONS})
 add_definitions(-std=c++17)   #boost需要版以上
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILE})          #設定執行檔名稱及對應程式碼
-target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES}) #連結函式庫
+target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES} realsense2::realsense2) #連結函式庫
 
 if(BUILD_EXAMPLE)   #設定其他範例執行檔
     add_executable(pcd_viewer ${CMAKE_BINARY_DIR}/../src/pcd_viewer.cpp)
