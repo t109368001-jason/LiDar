@@ -12,19 +12,18 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../include/stb_image_write.h"
 
-using namespace std;
-using namespace pcl;
-using namespace pcl::console;
-using namespace pcl::visualization;
-using namespace Eigen;
-
 typedef pcl::PointXYZ PointT;
 
 class MicroStopwatch
 {
     public:
+        int64_t elapsed;
         boost::posix_time::ptime tictic;
         boost::posix_time::ptime toctoc;
+        MicroStopwatch()
+        {
+            elapsed = 0;
+        }
         void tic()
         {
             tictic = boost::posix_time::microsec_clock::local_time ();
@@ -32,12 +31,25 @@ class MicroStopwatch
         int64_t toc()
         {
             toctoc = boost::posix_time::microsec_clock::local_time ();
+            this->elapsed += (toctoc - tictic).total_microseconds();
             return (toctoc - tictic).total_microseconds();
         }
         std::string toc_string()
         {
             toctoc = boost::posix_time::microsec_clock::local_time ();
             return myFunction::commaFix((toctoc - tictic).total_microseconds());
+        }
+        std::string elapsed_string()
+        {
+            return myFunction::commaFix(elapsed);
+        }
+        int64_t toc_pre()
+        {
+            return (toctoc - tictic).total_microseconds();
+        }
+        void clear()
+        {
+            this->elapsed = 0;
         }
 };
 
@@ -53,18 +65,8 @@ args::Group group(parser, "This group is all required:", args::Group::Validators
 args::ValueFlag<std::string> inputBag(group, "CLOUD_IN", "input bag path", {'i', "if"});
 args::ValueFlag<std::string> inputBagBackground(group, "CLOUD_IN", "input background cloud path", {'b', "bf"});
 
-void keyboardEventOccurred(const KeyboardEvent& event, void* nothing);
-pcl::PointCloud<PointT>::Ptr points_to_pcl(const rs2::points& points);
+void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing);
 
-std::thread _worker;
-template <typename F, typename G, typename H> void start_worker(const F& f, const G& g, const H& h)
-{
-    _worker = std::thread(f, g, h);
-}
-void wait()
-{
-    _worker.join();
-}
 void pcl_viewer()
 {
     double firstFrameTimeStamp;
@@ -91,6 +93,7 @@ void pcl_viewer()
     std::vector<boost::shared_ptr<myClass::CustomFrame<PointT>>> customFrames;
 
     ////////////////////////////////////////////////////////////////
+    std::cerr << "Load bag file...\n", tt.tic();
     auto device = pipe->get_active_profile().get_device();
     rs2::playback playback = device.as<rs2::playback>();
     playback.set_real_time(false);
@@ -98,23 +101,35 @@ void pcl_viewer()
     auto duration = playback.get_duration();
     int progress = 0;
     auto frameNumber = 0ULL;
+    boost::shared_ptr<myClass::CustomFrame<PointT>> customFrame;
+    MicroStopwatch tt1;
+    MicroStopwatch tt2;
+    MicroStopwatch tt3;
+    MicroStopwatch tt4;
     while (true) 
     {
-        boost::shared_ptr<myClass::CustomFrame<PointT>> customFrame;
-
-        playback.resume();
+        tt1.tic();
         auto frameset = pipe->wait_for_frames();
+        tt1.toc();
+        tt2.tic();
         playback.pause();
+        tt2.toc();
 
         int posP = static_cast<int>(playback.get_position() * 100. / duration.count());
+        
+        //if (posP > progress) {
+            //std::cerr << frameset[0].get_frame_number() << std::endl;
+        //}
 
-        if (posP > progress) {
-            progress = posP;
-            cout << posP << "%" << "\r" << flush;
-        }
-
+        //std::cerr << frameset[0].get_frame_number() << std::endl;
         if (frameset[0].get_frame_number() < frameNumber) {
+            std::cerr << "100%" << std::endl;
             break;
+        }
+        else
+        {
+            progress = posP;
+            std::cerr << posP << "%" << "\r" << flush;
         }
 
         if(frameNumber == 0ULL)
@@ -122,44 +137,30 @@ void pcl_viewer()
             bagStartTime -= std::chrono::milliseconds(int64_t(frameset.get_timestamp()));
         }
 
-        customFrame.reset(new myClass::CustomFrame<PointT>(frameset, bagStartTime));
-        customFrames.push_back(customFrame);
+        auto currentTime = bagStartTime + std::chrono::milliseconds(int64_t(frameset.get_timestamp()));
+
+        tt3.tic();
+        customFrame.reset(new myClass::CustomFrame<PointT>(frameset, currentTime));
+        tt3.toc();
         frameNumber = frameset[0].get_frame_number();
+        tt4.tic();
+        playback.resume();
+        tt4.toc();
+        customFrames.push_back(customFrame);
 
     }
+    //multiComput<decltype(customFrames.begin())>(std::ceil(customFrames.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency(), customFrames.begin(), customFrames.end());
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << " >> tt1: " << tt1.elapsed_string() << " us\n";
+    std::cerr << " >> tt2: " << tt2.elapsed_string() << " us\n";
+    std::cerr << " >> tt3: " << tt3.elapsed_string() << " us\n";
+    std::cerr << " >> tt4: " << tt4.elapsed_string() << " us\n";
     std::cerr << customFrames.size() << std::endl;
+    std::cerr << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     return;
     ////////////////////////////////////////////////////////////////*/
 
     /*///////////////////////////////////////////////////////////////
-    bool first = true;
-    while(1)
-    {
-        rs2::frameset *frames = new rs2::frameset();
-        boost::shared_ptr<myClass::CustomFrame<PointT>> customFrame;
-
-        if(pipe->try_wait_for_frames(frames))
-        {
-            if(first)
-            {
-                bagStartTime -= std::chrono::milliseconds(int64_t(frames->get_timestamp()));
-            }
-            else if(frames == customFrames[0]->frame) break;
-            
-            customFrame.reset(new myClass::CustomFrame<PointT>(frames, bagStartTime));
-            customFrames.push_back(customFrame);
-            std::cerr << frames->get_color_frame().get_frame_number() << std::endl;
-            std::cerr << frames->get_frame_number() << std::endl << std::endl;
-        }
-        else break;
-    }
-    std::cerr << customFrames.size() << std::endl;
-    std::cerr << sizeof(customFrames) << std::endl;
-    return;
-    ////////////////////////////////////////////////////////////////*/
-
-
-    ////////////////////////////////////////////////////////////////
     std::cerr << "Loading point cloud...", tt.tic();
     if(pcl::io::loadPCDFile (backgroundCloudFileName, *backgroundCloud) == -1)return;
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
@@ -212,6 +213,9 @@ void pcl_viewer()
 
     while( !viewer->wasStopped())
     {
+            viewer->spinOnce();
+            myFunction::updateCloud
+
         /*
         if (pipe->try_wait_for_frames(frames))
         {
@@ -303,7 +307,7 @@ int main(int argc, char * argv[])
     return 0;
 }
 
-void keyboardEventOccurred(const KeyboardEvent& event, void* nothing)
+void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing)
 {
     switch(event.getKeyCode())
     {

@@ -567,9 +567,38 @@ namespace myFunction
 	
 #pragma region points_to_pcl
 
+	template<typename RandomIt, typename RandomIt2>
+	int points_to_pclPart(int division_num, RandomIt2 ptr, RandomIt beg, RandomIt end)
+	{
+		auto len = end - beg;
+
+		if(len < division_num)
+		{
+			int out;
+			for(auto it = beg; it != end; ++it)
+			{
+				(*it).x = ptr->x;
+				(*it).y = ptr->y;
+				(*it).z = ptr->z;
+				ptr++;
+				out++;
+			}
+			return out;
+		}
+		auto mid = beg + len/2;
+		auto ptr2 = ptr + len/2;
+		auto handle = std::async(std::launch::async, points_to_pclPart<RandomIt, RandomIt2>, division_num, ptr, beg, mid);
+		auto out = points_to_pclPart<RandomIt, RandomIt2>(division_num, ptr2, mid, end);
+		auto out1 = handle.get();
+
+		return out + out1;
+	}
+
 	template<typename PointT>
 	typename pcl::PointCloud<PointT>::Ptr points_to_pcl(const rs2::points& points)
 	{
+		int division_num = std::ceil(points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+		
 		typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
 
 		auto sp = points.get_profile().as<rs2::video_stream_profile>();
@@ -578,16 +607,19 @@ namespace myFunction
 		cloud->is_dense = false;
 		cloud->points.resize(points.size());
 		auto ptr = points.get_vertices();
-		for (auto& p : cloud->points)
+
+		int count = points_to_pclPart(division_num, ptr, cloud->points.begin(), cloud->points.end());
+		/*for (auto& p : cloud->points)
 		{
 			p.x = ptr->x;
 			p.y = ptr->y;
 			p.z = ptr->z;
 			ptr++;
-		}
+		}*/
 
 		return cloud;
 	}
+
 #pragma endregion points_to_pcl
 
 	template<typename PointT>
