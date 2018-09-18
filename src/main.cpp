@@ -9,8 +9,6 @@
 #include "../include/segmentation.h"
 #include "../include/function.h"
 #include "../include/class.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../include/stb_image_write.h"
 
 typedef pcl::PointXYZ PointT;
 
@@ -108,28 +106,15 @@ void pcl_viewer()
     MicroStopwatch tt4;
     while (true) 
     {
-        tt1.tic();
+        playback.resume();
         auto frameset = pipe->wait_for_frames();
-        tt1.toc();
-        tt2.tic();
         playback.pause();
-        tt2.toc();
 
         int posP = static_cast<int>(playback.get_position() * 100. / duration.count());
         
-        //if (posP > progress) {
-            //std::cerr << frameset[0].get_frame_number() << std::endl;
-        //}
-
-        //std::cerr << frameset[0].get_frame_number() << std::endl;
         if (frameset[0].get_frame_number() < frameNumber) {
-            std::cerr << "100%" << std::endl;
+            //std::cerr << "100%" << std::endl;
             break;
-        }
-        else
-        {
-            progress = posP;
-            std::cerr << posP << "%" << "\r" << flush;
         }
 
         if(frameNumber == 0ULL)
@@ -139,22 +124,13 @@ void pcl_viewer()
 
         auto currentTime = bagStartTime + std::chrono::milliseconds(int64_t(frameset.get_timestamp()));
 
-        tt3.tic();
         customFrame.reset(new myClass::CustomFrame<PointT>(frameset, currentTime));
-        tt3.toc();
-        frameNumber = frameset[0].get_frame_number();
-        tt4.tic();
-        playback.resume();
-        tt4.toc();
         customFrames.push_back(customFrame);
-
+        frameNumber = frameset[0].get_frame_number();
+        std::cerr << customFrame->cloud->points.size() << std::endl;
     }
     //multiComput<decltype(customFrames.begin())>(std::ceil(customFrames.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency(), customFrames.begin(), customFrames.end());
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << " >> tt1: " << tt1.elapsed_string() << " us\n";
-    std::cerr << " >> tt2: " << tt2.elapsed_string() << " us\n";
-    std::cerr << " >> tt3: " << tt3.elapsed_string() << " us\n";
-    std::cerr << " >> tt4: " << tt4.elapsed_string() << " us\n";
     std::cerr << customFrames.size() << std::endl;
     std::cerr << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     return;
@@ -214,7 +190,6 @@ void pcl_viewer()
     while( !viewer->wasStopped())
     {
             viewer->spinOnce();
-            myFunction::updateCloud
 
         /*
         if (pipe->try_wait_for_frames(frames))
