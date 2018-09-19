@@ -4,6 +4,7 @@
 #include <iostream>
 #include <future>
 #include <librealsense2/rs.hpp>
+#include <librealsense2/rsutil.h>
 #include <pcl/io/ply_io.h>
 #include <pcl/io/vtk_lib_io.h>
 #include <pcl/features/normal_3d.h>
@@ -82,6 +83,30 @@ namespace myFunction
 	double norm(PointT p1)
 	{
 		return std::sqrt(p1.x*p1.x+p1.y*p1.y+p1.z*p1.z);
+	}
+
+	double norm(double x, double y, double z)
+	{
+		return std::sqrt(x*x+y*y+z*z);
+	}
+
+	void XYZ_to_Sphere(double &radius, double &phi, double &theta, const double x, const double y, const double z)
+	{
+		radius = norm(x,y,z);
+		theta = acos(z / radius);
+		phi = atan(y / x);
+		
+		if (x < 0.0)
+		{
+			if(y < 0.0)
+			{
+				phi -= M_PI;
+			}
+			else
+			{
+				phi += M_PI;
+			}
+		}
 	}
 
 	template<typename Type>

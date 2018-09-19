@@ -12,45 +12,6 @@
 
 typedef pcl::PointXYZ PointT;
 
-class MicroStopwatch
-{
-    public:
-        int64_t elapsed;
-        boost::posix_time::ptime tictic;
-        boost::posix_time::ptime toctoc;
-        MicroStopwatch()
-        {
-            elapsed = 0;
-        }
-        void tic()
-        {
-            tictic = boost::posix_time::microsec_clock::local_time ();
-        }
-        int64_t toc()
-        {
-            toctoc = boost::posix_time::microsec_clock::local_time ();
-            this->elapsed += (toctoc - tictic).total_microseconds();
-            return (toctoc - tictic).total_microseconds();
-        }
-        std::string toc_string()
-        {
-            toctoc = boost::posix_time::microsec_clock::local_time ();
-            return myFunction::commaFix((toctoc - tictic).total_microseconds());
-        }
-        std::string elapsed_string()
-        {
-            return myFunction::commaFix(elapsed);
-        }
-        int64_t toc_pre()
-        {
-            return (toctoc - tictic).total_microseconds();
-        }
-        void clear()
-        {
-            this->elapsed = 0;
-        }
-};
-
 int fps = 2;
 bool viewer_pause = false;
 
@@ -74,23 +35,41 @@ void pcl_viewer()
     auto pipe = std::make_shared<rs2::pipeline>();
     
     //rs2::pipeline pipe;
-    MicroStopwatch tt;
-    myClass::objectSegmentation<PointT> object_segmentation;
+    myClass::MicroStopwatch tt;
+    myClass::objectSegmentation2<PointT> object_segmentation;
     myClass::backgroundSegmentation<PointT> background_segmentation;
     
-    std::string backgroundCloudFileName = args::get(inputBagBackground);
-    std::string bagFileName = args::get(inputBag);
-    std::string bridgeFileName = "/home/xian-jie/workspace/github/tmp.txt";
+    std::string backgroundCloudFile = args::get(inputBagBackground);
+    std::string bagFile = args::get(inputBag);
+    std::string bridgeFile = "/home/xian-jie/workspace/github/tmp.txt";
     
+    if(!myFunction::fileExists(bridgeFile))
+    {
+        std::cerr << "bridge file not found" << std::endl;
+        return;
+    }
+    if(!myFunction::fileExists(bagFile))
+    {
+        std::cerr << "bag file not found" << std::endl;
+        return;
+    }
 
-    cfg.enable_device_from_file(bagFileName);
-    pipe->start(cfg);
-    std::chrono::milliseconds bagStartTime = myFunction::bagFileNameToMilliseconds(bagFileName);
+    cfg.enable_device_from_file(bagFile);
+    std::chrono::milliseconds bagStartTime = myFunction::bagFileNameToMilliseconds(bagFile);
 
     pcl::PointCloud<PointT>::Ptr backgroundCloud(new pcl::PointCloud<PointT>);
     std::vector<boost::shared_ptr<myClass::CustomFrame<PointT>>> customFrames;
 
-    ////////////////////////////////////////////////////////////////
+    //pipe->start(cfg);
+    rs2::pipeline_profile selection = pipe->start(cfg);
+    auto depth_stream = selection.get_stream(RS2_STREAM_DEPTH)
+                                .as<rs2::video_stream_profile>();
+    auto i = depth_stream.get_intrinsics();
+    float fov[2]; // X, Y fov
+    rs2_fov(&i, fov);
+    std::cerr << "fx" << fov[0] << std::endl;
+    std::cerr << "fy" << fov[1] << std::endl;
+    /*///////////////////////////////////////////////////////////////
     std::cerr << "Load bag file...\n", tt.tic();
     auto device = pipe->get_active_profile().get_device();
     rs2::playback playback = device.as<rs2::playback>();
@@ -99,11 +78,12 @@ void pcl_viewer()
     auto duration = playback.get_duration();
     int progress = 0;
     auto frameNumber = 0ULL;
-    boost::shared_ptr<myClass::CustomFrame<PointT>> customFrame;
-    MicroStopwatch tt1;
-    MicroStopwatch tt2;
-    MicroStopwatch tt3;
-    MicroStopwatch tt4;
+    myClass::MicroStopwatch tt1("tt1");
+    myClass::MicroStopwatch tt2("tt2");
+    myClass::MicroStopwatch tt3("tt3");
+    myClass::MicroStopwatch tt4("tt4");
+    myClass::MicroStopwatch tt5("tt5");
+
     while (true) 
     {
         playback.resume();
@@ -122,31 +102,64 @@ void pcl_viewer()
             bagStartTime -= std::chrono::milliseconds(int64_t(frameset.get_timestamp()));
         }
 
-        auto currentTime = bagStartTime + std::chrono::milliseconds(int64_t(frameset.get_timestamp()));
+        boost::shared_ptr<myClass::CustomFrame<PointT>> customFrame(new myClass::CustomFrame<PointT>);
 
-        customFrame.reset(new myClass::CustomFrame<PointT>(frameset, currentTime));
-        customFrames.push_back(customFrame);
+
+        //if(customFrame->set(frameset, bagStartTime, bridgeFile, tt1, tt2, tt3, tt4, tt5))
+        if(customFrame->set(frameset, bagStartTime, bridgeFile))
+        {
+            customFrames.push_back(customFrame);
+        }
         frameNumber = frameset[0].get_frame_number();
-        std::cerr << customFrame->cloud->points.size() << std::endl;
     }
-    //multiComput<decltype(customFrames.begin())>(std::ceil(customFrames.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency(), customFrames.begin(), customFrames.end());
+    tt1.elapsed_print_string();
+    tt2.elapsed_print_string();
+    tt3.elapsed_print_string();
+    tt4.elapsed_print_string();
+    tt5.elapsed_print_string();
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     std::cerr << customFrames.size() << std::endl;
     std::cerr << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+
     return;
     ////////////////////////////////////////////////////////////////*/
 
-    /*///////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////
     std::cerr << "Loading point cloud...", tt.tic();
-    if(pcl::io::loadPCDFile (backgroundCloudFileName, *backgroundCloud) == -1)return;
+    if(pcl::io::loadPCDFile (backgroundCloudFile, *backgroundCloud) == -1)return;
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     std::cerr << "backgroundCloud: " << backgroundCloud->points.size() << " points\n";
     std::cerr << '\n';
     ////////////////////////////////////////////////////////////////*/
     
-    double division_Horizontal_FOV;
-    cout << "Please input division_Horizontal_FOV (0 ~ 360): "; 
-    cin >> division_Horizontal_FOV;
+    ////////////////////////////////////////////////////////////////
+    double w = 1280.0;
+    double h = 720.0;
+    std::cerr << "Point cloud object segmentation...", tt.tic();
+    object_segmentation.setCameraParameter("UL", w, h, 89.7974 * M_PI / 180.0, 89.7974 * M_PI / 180.0);
+    object_segmentation.setBound(960.0, 180.0, 640.0, 360.0);
+    backgroundCloud = object_segmentation.division(backgroundCloud, false);
+    object_segmentation.printAngle();
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << "Point cloud after object segmentation: " << myFunction::commaFix(backgroundCloud->points.size()) << " points\n";
+    std::cerr << '\n';
+
+    viewer.reset(new pcl::visualization::PCLVisualizer ("3D Viewer"));
+    viewer->setSize(1280, 720);
+
+    //pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::fillColor<PointT>(backgroundCloud, 255, 0, 0);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::fillColor<PointT>(backgroundCloud, 255, 0, 0);
+
+    myFunction::showCloud(viewer, backgroundCloud_view, "Cloud_view1");
+
+    viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*) NULL);
+    //viewer->addCoordinateSystem( 3.0, "coordinate" );
+    viewer->setBackgroundColor (0, 0, 0);
+    viewer->setCameraPosition( 0.0, 0.0, -0.0000001, 0.0, -1.0, 0.0, 0 );
+    viewer->setCameraFieldOfView(60.0 * M_PI / 180.0);
+    viewer->spin();
+
+    ////////////////////////////////////////////////////////////////*/
 
     /*///////////////////////////////////////////////////////////////
     double division_Horizontal_FOV;
@@ -162,7 +175,7 @@ void pcl_viewer()
     std::cerr << '\n';
     ////////////////////////////////////////////////////////////////*/
 
-    ////////////////////////////////////////////////////////////////
+    /*///////////////////////////////////////////////////////////////
     //double resolution;
     //cout << "Please input background segmentation resolution: "; 
     //cin >> resolution;
@@ -179,7 +192,6 @@ void pcl_viewer()
     viewer.reset(new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setSize(1280, 720);
 
-    //viewer->addPointCloud(cloud, filename);
     viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*) NULL);
     //viewer->addCoordinateSystem( 3.0, "coordinate" );
     viewer->setBackgroundColor (0, 0, 0);
@@ -218,7 +230,7 @@ void pcl_viewer()
             while(1)
             {
                 std::ifstream ifs;
-                ifs.open(bridgeFileName);
+                ifs.open(bridgeFile);
                 std::string line;
                 if(ifs.is_open())
                 {
@@ -228,7 +240,7 @@ void pcl_viewer()
                 if(line == "")
                 {
                     std::ofstream ofs;
-                    ofs.open(bridgeFileName);
+                    ofs.open(bridgeFile);
                     ofs.write(png_file.str().c_str(), png_file.str().size());
                     ofs.close();
                     break;
