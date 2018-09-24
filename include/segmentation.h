@@ -467,11 +467,6 @@ namespace myClass
 			double segmentation_Right_Bound;
 			double segmentation_Scale_Fix;
 
-			double Up_Bound;
-			double Down_Bound;
-			double Left_Bound;
-			double Right_Bound;
-
 			bool BoundIsSet;
 
 			bool keep_Inside;
@@ -559,10 +554,6 @@ namespace myClass
 
 				cloud->width = (int) cloud->points.size();
 				cloud->height = 1;
-					std::cerr << "Left_Bound: " << this->Left_Bound << std::endl;
-					std::cerr << "Right_Bound: " << this->Right_Bound << std::endl;
-					std::cerr << "Up_Bound: " << this->Up_Bound << std::endl;
-					std::cerr << "Down_Bound: " << this->Down_Bound << std::endl;
 				return cloud;
 			}
 		private:
@@ -570,15 +561,8 @@ namespace myClass
 			{
 				if(std::fabs(point.x*point.y*point.z) == 0.0){ return false; }
 
-				double radius = myFunction::norm(point.x, point.y, point.z);
-
 				double X_Pojection = (point.x * this->camera_Depth) / point.z;
 				double Y_Pojection = (point.y * this->camera_Depth) / point.z;
-
-				this->Left_Bound = std::fmin(this->Left_Bound, X_Pojection);
-				this->Right_Bound = std::fmax(this->Right_Bound, X_Pojection);
-				this->Up_Bound = std::fmin(this->Up_Bound, Y_Pojection);
-				this->Down_Bound = std::fmax(this->Down_Bound, Y_Pojection);
 
 				if(X_Pojection < this->segmentation_Left_Bound) { return false; }
 				if(X_Pojection > this->segmentation_Right_Bound) { return false; }
