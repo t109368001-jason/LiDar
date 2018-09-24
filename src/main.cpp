@@ -35,7 +35,7 @@ void pcl_viewer()
     auto pipe = std::make_shared<rs2::pipeline>();
     
     //rs2::pipeline pipe;
-    myClass::MicroStopwatch tt;
+    myClass::MicroStopwatch tt("main");
     myClass::objectSegmentation2<PointT> object_segmentation;
     myClass::backgroundSegmentation<PointT> background_segmentation;
     
@@ -60,8 +60,9 @@ void pcl_viewer()
     pcl::PointCloud<PointT>::Ptr backgroundCloud(new pcl::PointCloud<PointT>);
     std::vector<boost::shared_ptr<myClass::CustomFrame<PointT>>> customFrames;
 
-    //pipe->start(cfg);
     rs2::pipeline_profile selection = pipe->start(cfg);
+    
+    /*///////////////////////////////////////////////////////////////
     auto depth_stream = selection.get_stream(RS2_STREAM_DEPTH)
                                 .as<rs2::video_stream_profile>();
     auto i = depth_stream.get_intrinsics();
@@ -69,6 +70,8 @@ void pcl_viewer()
     rs2_fov(&i, fov);
     std::cerr << "fx" << fov[0] << std::endl;
     std::cerr << "fy" << fov[1] << std::endl;
+    ////////////////////////////////////////////////////////////////*/
+
     /*///////////////////////////////////////////////////////////////
     std::cerr << "Load bag file...\n", tt.tic();
     auto device = pipe->get_active_profile().get_device();
@@ -79,10 +82,6 @@ void pcl_viewer()
     int progress = 0;
     auto frameNumber = 0ULL;
     myClass::MicroStopwatch tt1("tt1");
-    myClass::MicroStopwatch tt2("tt2");
-    myClass::MicroStopwatch tt3("tt3");
-    myClass::MicroStopwatch tt4("tt4");
-    myClass::MicroStopwatch tt5("tt5");
 
     while (true) 
     {
@@ -104,23 +103,15 @@ void pcl_viewer()
 
         boost::shared_ptr<myClass::CustomFrame<PointT>> customFrame(new myClass::CustomFrame<PointT>);
 
-
-        //if(customFrame->set(frameset, bagStartTime, bridgeFile, tt1, tt2, tt3, tt4, tt5))
         if(customFrame->set(frameset, bagStartTime, bridgeFile))
         {
             customFrames.push_back(customFrame);
         }
         frameNumber = frameset[0].get_frame_number();
     }
-    tt1.elapsed_print_string();
-    tt2.elapsed_print_string();
-    tt3.elapsed_print_string();
-    tt4.elapsed_print_string();
-    tt5.elapsed_print_string();
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     std::cerr << customFrames.size() << std::endl;
     std::cerr << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
-
     return;
     ////////////////////////////////////////////////////////////////*/
 
@@ -132,7 +123,7 @@ void pcl_viewer()
     std::cerr << '\n';
     ////////////////////////////////////////////////////////////////*/
     
-    ////////////////////////////////////////////////////////////////
+    /*///////////////////////////////////////////////////////////////
     double w = 1280.0;
     double h = 720.0;
     std::cerr << "Point cloud object segmentation...", tt.tic();
@@ -143,22 +134,6 @@ void pcl_viewer()
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     std::cerr << "Point cloud after object segmentation: " << myFunction::commaFix(backgroundCloud->points.size()) << " points\n";
     std::cerr << '\n';
-
-    viewer.reset(new pcl::visualization::PCLVisualizer ("3D Viewer"));
-    viewer->setSize(1280, 720);
-
-    //pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::fillColor<PointT>(backgroundCloud, 255, 0, 0);
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::fillColor<PointT>(backgroundCloud, 255, 0, 0);
-
-    myFunction::showCloud(viewer, backgroundCloud_view, "Cloud_view1");
-
-    viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*) NULL);
-    //viewer->addCoordinateSystem( 3.0, "coordinate" );
-    viewer->setBackgroundColor (0, 0, 0);
-    viewer->setCameraPosition( 0.0, 0.0, -0.0000001, 0.0, -1.0, 0.0, 0 );
-    viewer->setCameraFieldOfView(60.0 * M_PI / 180.0);
-    viewer->spin();
-
     ////////////////////////////////////////////////////////////////*/
 
     /*///////////////////////////////////////////////////////////////
@@ -192,6 +167,11 @@ void pcl_viewer()
     viewer.reset(new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setSize(1280, 720);
 
+    //pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::fillColor<PointT>(backgroundCloud, 255, 0, 0);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::fillColor<PointT>(backgroundCloud, 255, 0, 0);
+
+    myFunction::showCloud(viewer, backgroundCloud_view, "Cloud_view1");
+
     viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*) NULL);
     //viewer->addCoordinateSystem( 3.0, "coordinate" );
     viewer->setBackgroundColor (0, 0, 0);
@@ -199,10 +179,21 @@ void pcl_viewer()
     viewer->setCameraFieldOfView(60.0 * M_PI / 180.0);
     viewer->spinOnce();
 
+    std::vector<pcl::visualization::Camera> cameras;
+
     while( !viewer->wasStopped())
     {
-            viewer->spinOnce();
+        viewer->spinOnce();
+        viewer->getCameras(cameras);
+        myFunction::printCamera(cameras[0]);
 
+        double r;
+        double phi;
+        double theta;
+        myFunction::XYZ_to_Sphere(r, phi, theta, cameras[0].view[0], cameras[0].view[1], cameras[0].view[2]);
+        std::cerr << " - phi: " << phi*180.0/M_PI << std::endl;
+        std::cerr << " - theta: " << theta*180.0/M_PI << std::endl;
+        boost::this_thread::sleep(boost::posix_time::milliseconds(16));
         /*
         if (pipe->try_wait_for_frames(frames))
         {

@@ -17,55 +17,6 @@ using namespace std;
 
 namespace myFunction
 {
-#pragma region template
-	/*
-	template<typename RandomIt, typename PointT>
-	PointT getNearOrFarthestPointPart(int division_num, bool Nearest, PointT point, RandomIt beg, RandomIt end)
-	{
-		auto len = end - beg;
-
-		if(len < division_num)
-		{
-			double current;
-			PointT out;
-			for(auto it = beg; it != end; ++it)
-			{
-				double temp = distance(point.x, point.y, point.z, (*it).x, (*it).y, (*it).z);
-				if((temp > current) ^ Nearest)
-				{
-					current = temp;
-					out = *it;
-				}
-			}
-			return out;
-		}
-		auto mid = beg + len/2;
-
-		auto handle = std::async(std::launch::async, getNearOrFarthestPointPart<RandomIt, PointT>, division_num, Nearest, point, beg, mid);
-
-		auto out = getNearOrFarthestPointPart<RandomIt, PointT>(division_num, Nearest, point, mid, end);
-
-		auto out1 = handle.get();
-
-		if((distance(point.x, point.y, point.z, out1.x, out1.y, out1.z) > distance(point.x, point.y, point.z, out.x, out.y, out.z)) ^ Nearest)
-		{
-			return out1;
-		}
-
-		return out;
-	}
-
-	template<typename PointT>
-	PointT getNearOrFarthestPoint(typename pcl::PointCloud<PointT>::Ptr cloud, bool Nearest = true, PointT point = PointT(0,0,0))
-	{
-		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
-		
-		return getNearOrFarthestPointPart<decltype(cloud->points.begin()), PointT>(division_num, Nearest, point, cloud->points.begin(), cloud->points.end());
-	}
-
-	//*/
-
-#pragma endregion template
 
 #pragma region basic
 
@@ -671,6 +622,18 @@ namespace myFunction
 
 		return temp;
 	}
+
+#pragma region printCamera
+
+	void printCamera(pcl::visualization::Camera camera)
+	{
+		std::cout << "Cam: " << endl;
+        std::cout << " - pos: (" << camera.pos[0] << ", "    << camera.pos[1] << ", "    << camera.pos[2] << ")" << endl;
+        std::cout << " - view: ("    << camera.view[0] << ", "   << camera.view[1] << ", "   << camera.view[2] << ")"    << endl;
+        std::cout << " - focal: ("   << camera.focal[0] << ", "  << camera.focal[1] << ", "  << camera.focal[2] << ")"   << endl;
+	}
+
+#pragma endregion printCamera
 
 #pragma region testing
 
