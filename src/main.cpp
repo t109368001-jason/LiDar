@@ -5,6 +5,7 @@
 #include <pcl/octree/octree.h>
 #include <pcl/console/time.h>
 #include <boost/format.hpp>
+#include <boost/filesystem.hpp>
 #include "../include/args.hxx"
 #include "../include/segmentation.h"
 #include "../include/function.h"
@@ -37,11 +38,13 @@ void pcl_viewer()
     myClass::MicroStopwatch tt("main");
     myClass::objectSegmentation<PointT> object_segmentation;
     myClass::backgroundSegmentation<PointT> background_segmentation;
+    std::vector<boost::shared_ptr<myFrame::CustomFrame<PointT>>> customFrames;
     
     std::string backgroundCloudFile = args::get(inputBagBackground);
     std::string bagFile = args::get(inputBag);
     std::string bridgeFile = "/home/xian-jie/workspace/github/tmp.txt";
     std::string tmp_dir = "tmp/";
+    std::string output_dir = "data/";
     
     if(!myFunction::fileExists(bridgeFile))
     {
@@ -53,18 +56,57 @@ void pcl_viewer()
         std::cerr << "bag file not found" << std::endl;
         return;
     }
+    if(!myFunction::fileExists(tmp_dir))
+    {
+        mkdir(tmp_dir.c_str(), 0777);
+    }
+    if(!myFunction::fileExists(output_dir))
+    {
+        mkdir(output_dir.c_str(), 0777);
+    }
 
     
     pcl::PointCloud<PointT>::Ptr backgroundCloud(new pcl::PointCloud<PointT>);
     ////////////////////////////////////////////////////////////////
-    std::cerr << "Load bag file...\n", tt.tic();
-    std::vector<boost::shared_ptr<myFrame::CustomFrame<PointT>>> customFrames;
+    std::cerr << "Load bag file...", tt.tic();
 
     myFrame::getCustomFrames(bagFile, customFrames, bridgeFile, tmp_dir);
 
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << customFrames.size() << std::endl;
-    std::cerr << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cerr << "Total frame : " << customFrames.size();
+    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cerr << '\n';
+    ////////////////////////////////////////////////////////////////*/
+
+    ////////////////////////////////////////////////////////////////
+    std::cerr << "save custom frames...", tt.tic();
+    for(int i = 0; i < customFrames.size(); i++)
+    {
+        customFrames[i]->save(output_dir);
+    }
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << "Total frame : " << customFrames.size();
+    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cerr << '\n';
+    ////////////////////////////////////////////////////////////////*/
+
+    ////////////////////////////////////////////////////////////////
+    std::cerr << "load custom frames...", tt.tic();
+    myFrame::loadCustomFrames(output_dir, customFrames);
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << "Total frame : " << customFrames.size();
+    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    ////////////////////////////////////////////////////////////////*/
+    return;
+    ////////////////////////////////////////////////////////////////
+    double w = 1280.0;
+    double h = 720.0;
+    std::cerr << "Point cloud object segmentation...", tt.tic();
+    object_segmentation.setCameraParameter("CC", w, h, 89.7974 * M_PI / 180.0, 89.7974 * M_PI / 180.0);
+    object_segmentation.setBound(0.0, 0.0, 640.0, 360.0);
+    
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << '\n';
     ////////////////////////////////////////////////////////////////*/
 
     ////////////////////////////////////////////////////////////////
@@ -75,17 +117,6 @@ void pcl_viewer()
     std::cerr << '\n';
     ////////////////////////////////////////////////////////////////*/
     
-    ////////////////////////////////////////////////////////////////
-    double w = 1280.0;
-    double h = 720.0;
-    std::cerr << "Point cloud object segmentation...", tt.tic();
-    object_segmentation.setCameraParameter("CC", w, h, 89.7974 * M_PI / 180.0, 89.7974 * M_PI / 180.0);
-    object_segmentation.setBound(0.0, 0.0, 640.0, 360.0);
-    
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << "Point cloud after object segmentation: " << myFunction::commaFix(backgroundCloud->points.size()) << " points\n";
-    std::cerr << '\n';
-    ////////////////////////////////////////////////////////////////*/
 
     /*///////////////////////////////////////////////////////////////
     //double resolution;

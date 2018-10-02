@@ -58,6 +58,7 @@
         "list": "cpp",
         "bitset": "cpp",
         "unordered_set": "cpp",
-        "string_view": "cpp"
+        "string_view": "cpp",
+        "filesystem": "cpp"
     }
 }

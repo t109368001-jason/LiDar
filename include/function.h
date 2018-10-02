@@ -911,7 +911,11 @@ namespace myFunction
 		result.y = v.y*t;
 		result.z = v.z*t;
 	}
-
+	template<typename RandomIt1, typename RandomIt2> 
+	int getDivNum(RandomIt1 total, RandomIt2 part)
+	{
+		return std::ceil((double)(total)/(double)(part));
+	}		
 
 }
 #endif

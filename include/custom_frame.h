@@ -50,26 +50,22 @@ namespace myFrame
                     std::string cwd = std::string(getcwd(NULL, 0)) + '/';
 
                     std::string output_dir = cwd + tmp_dir;
-                    if(!myFunction::fileExists(output_dir))
-                    {
-                        mkdir(output_dir.c_str(), 0777);
-                    }
-
-                    this->file_name = output_dir + myFunction::millisecondToString(this->time_stamp);
                     
-                    std::string png_file = this->file_name + ".png";
+                    this->file_name = myFunction::millisecondToString(this->time_stamp);
+                    
+                    std::string png_file = output_dir + this->file_name + ".png";
                     while(myFunction::fileExists(png_file))
                     {
                         this->time_stamp += std::chrono::milliseconds(33);
-                        this->file_name = output_dir + myFunction::millisecondToString(this->time_stamp);
+                        this->file_name = myFunction::millisecondToString(this->time_stamp);
                     
-                        png_file = this->file_name + ".png";
+                        png_file = output_dir + this->file_name + ".png";
                     }
                     stbi_write_png( png_file.c_str(), frameColor.get_width(), frameColor.get_height(), frameColor.get_bytes_per_pixel(), frameColor.get_data(), frameColor.get_stride_in_bytes());
                     
                     boost::this_thread::sleep(boost::posix_time::milliseconds(10));
 
-                    this->detect(bridge_file);
+                    this->detect(png_file, bridge_file);
 
                     rs2::points points;
                     points = rs2::pointcloud().calculate(frameDepth);
@@ -79,35 +75,31 @@ namespace myFrame
                 return true;
             }
             
-            bool detect(std::string bridge_file)
+            bool save(std::string output_dir)
             {
-                std::string png_file = this->file_name + ".png\n";
-                while(1)
+                std::string file_name = output_dir + this->file_name;
+                std::string txt_file = file_name + ".txt";
+                std::string pcd_file = file_name + ".pcd";
+
+                std::ofstream ofs(txt_file);
+                ofs << "time_stamp=" << this->time_stamp.count() << std::endl;
+                ofs << "entire_cloud=" << pcd_file << std::endl;
+                pcl::io::savePCDFileBinary(pcd_file, *(this->entire_cloud));
+                ofs << "objects=" << this->yolo_objects.size() << std::endl;
+                for(int i = 0; i < this->yolo_objects.size(); i++)
                 {
-                    std::string line;
-                    std::ifstream ifs(bridge_file);
-                    
-                    std::getline(ifs, line);
-                    
-                    ifs.close();
-
-                    if(line == "")
-                    {
-                        std::ofstream ofs(bridge_file);
-                        
-                        ofs << png_file;
-                        ofs.close();
-                        break;
-                    }
-
-                    boost::this_thread::sleep(boost::posix_time::milliseconds(1));
+                    std::stringstream tmp;
+                    tmp << file_name << "_" << i << ".pcd";
+                    ofs << i << "=" << tmp.str() << std::endl;
+                    pcl::io::savePCDFileBinary(tmp.str(), *(this->yolo_objects[i]->cloud));
                 }
+
+                std::vector<boost::shared_ptr<YoloObject<PointT>>> yolo_objects;
             }
 
             bool getTxt(std::string bridge_file)
             {
                 std::string txt_file = this->file_name + ".txt";
-                std::string png_file = this->file_name + ".png";
 
                 while(1)
                 {
@@ -148,15 +140,42 @@ namespace myFrame
 
             friend ostream& operator<<(ostream &out, CustomFrame &obj)
             {
-                out << "time : " << obj.time_stamp << std::endl;
+                out << "time : " << obj.time_stamp.count() << " ms" << std::endl;
+                out << "cloud : " << obj.entire_cloud->points.size() << " points" << std::endl;
+
                 for(int i = 0; i < obj.yolo_objects.size(); i++)
                 {
                     out << "obj" << i << " : " << obj.yolo_objects[i]->name << std::endl;
                 }
+                return out;
             }
 
         private:
             std::unordered_map<int, std::unordered_set<unsigned long long>> _framesMap;
+
+            bool detect(std::string &png_file, std::string &bridge_file)
+            {
+                while(1)
+                {
+                    std::string line;
+                    std::ifstream ifs(bridge_file);
+                    
+                    std::getline(ifs, line);
+                    
+                    ifs.close();
+
+                    if(line == "")
+                    {
+                        std::ofstream ofs(bridge_file);
+                        
+                        ofs << png_file + '\n';
+                        ofs.close();
+                        break;
+                    }
+
+                    boost::this_thread::sleep(boost::posix_time::milliseconds(1));
+                }
+            }
 
             bool frames_map_get_and_set(rs2_stream streamType, unsigned long long frameNumber)
             {
@@ -175,8 +194,74 @@ namespace myFrame
             }
     };
 
+/*
+	template<typename RandomIt>
+	int loadCustomFramesPart(int division_num, RandomIt beg, RandomIt end)
+	{
+		auto len = end - beg;
+
+		if(len < division_num)
+		{
+            std::vector<boost::shared_ptr<CustomFrame<PointT>>> customFrames;
+			for(auto it = beg; it != end; ++it)
+			{
+                
+			}
+			return out;
+		}
+		auto mid = beg + len/2;
+		auto ptr2 = ptr + len/2;
+		auto handle = std::async(std::launch::async, loadCustomFramesPart<RandomIt>, division_num, beg, mid);
+		auto out = loadCustomFramesPart<RandomIt>(division_num, mid, end);
+		auto out1 = handle.get();
+
+		return out + out1;
+	}
+*/
+    template<typename PointT>
+	bool loadCustomFrames(std::string output_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames)
+	{
+        std::vector<std::string> files;
+        for (boost::filesystem::directory_entry & file : boost::filesystem::directory_iterator(output_dir))
+        {
+            if(file.path().extension().string() == ".txt")
+            {
+                files.push_back(file.path().string());
+            }
+        }
+        std::sort(files.begin(), files.end());
+
+        for(int i = 0; i < files.size(); i++)
+        {
+            boost::shared_ptr<CustomFrame<PointT>> customFrame(new CustomFrame<PointT>);
+            std::ifstream ifs(files[i]);
+            while(!ifs.eof())
+            {
+                std::string tmp;
+                ifs >> tmp;
+
+                std::vector<std::string> strs;
+                boost::split(strs, tmp, boost::is_any_of("="));
+                if(strs[0] == "time_stamp")
+                {
+                    customFrame->time_stamp = std::chrono::milliseconds(std::stoll(strs[1]));
+                }
+                else if(strs[0] == "entire_cloud")
+                {
+		            typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
+                    pcl::io::loadPCDFile(strs[1], *cloud);
+                    customFrame->entire_cloud = cloud;
+                }
+                else if(strs[0] == "objects")
+                {
+                    
+                }
+            }
+            customFrames.push_back(customFrame);
+        }
+    }
 	template<typename PointT>
-	bool getCustomFrames(std::string bagFile, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, std::string bridge_file, std::string &tmp_dir)
+	bool getCustomFrames(std::string &bagFile, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, std::string &bridge_file, std::string &tmp_dir, int number = std::numeric_limits<int>::max())
 	{
         rs2::config cfg;
         auto pipe = std::make_shared<rs2::pipeline>();
@@ -194,15 +279,16 @@ namespace myFrame
 		int progress = 0;
 		auto frameNumber = 0ULL;
 
+        int finished = 0;
+
 		while (true) 
 		{
             playback.resume();
 			auto frameset = pipe->wait_for_frames();
 			playback.pause();
 
-			//int posP = static_cast<int>(playback.get_position() * 100. / duration.count());
-			
-			if (frameset[0].get_frame_number() < frameNumber) {
+			if((frameset[0].get_frame_number() < frameNumber)||(finished >= number))
+            {
 				break;
 			}
 
@@ -216,6 +302,7 @@ namespace myFrame
 			if(customFrame->set(frameset, bagStartTime, bridge_file, tmp_dir))
 			{
 				customFrames.push_back(customFrame);
+                finished++;
 			}
 			frameNumber = frameset[0].get_frame_number();
 		}
