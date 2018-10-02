@@ -194,9 +194,8 @@ namespace myFrame
             }
     };
 
-/*
-	template<typename RandomIt>
-	int loadCustomFramesPart(int division_num, RandomIt beg, RandomIt end)
+	template<typename RandomIt, typename PointT>
+	std::vector<boost::shared_ptr<CustomFrame<PointT>>> loadCustomFramesPart(int division_num, RandomIt beg, RandomIt end)
 	{
 		auto len = end - beg;
 
@@ -205,19 +204,44 @@ namespace myFrame
             std::vector<boost::shared_ptr<CustomFrame<PointT>>> customFrames;
 			for(auto it = beg; it != end; ++it)
 			{
-                
+                boost::shared_ptr<CustomFrame<PointT>> customFrame(new CustomFrame<PointT>);
+                std::ifstream ifs((*it));
+                while(!ifs.eof())
+                {
+                    std::string tmp;
+                    ifs >> tmp;
+
+                    std::vector<std::string> strs;
+                    boost::split(strs, tmp, boost::is_any_of("="));
+                    if(strs[0] == "time_stamp")
+                    {
+                        customFrame->time_stamp = std::chrono::milliseconds(std::stoll(strs[1]));
+                    }
+                    else if(strs[0] == "entire_cloud")
+                    {
+                        typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
+                        pcl::io::loadPCDFile(strs[1], *cloud);
+                        customFrame->entire_cloud = cloud;
+                    }
+                    else if(strs[0] == "objects")
+                    {
+                        
+                    }
+                }
+                customFrames.push_back(customFrame);
 			}
-			return out;
+			return customFrames;
 		}
 		auto mid = beg + len/2;
-		auto ptr2 = ptr + len/2;
-		auto handle = std::async(std::launch::async, loadCustomFramesPart<RandomIt>, division_num, beg, mid);
-		auto out = loadCustomFramesPart<RandomIt>(division_num, mid, end);
+		auto handle = std::async(std::launch::async, loadCustomFramesPart<RandomIt, PointT>, division_num, beg, mid);
+		auto out = loadCustomFramesPart<RandomIt, PointT>(division_num, mid, end);
 		auto out1 = handle.get();
 
-		return out + out1;
+		std::copy(out1.begin(), out1.end(), std::back_inserter(out));
+
+		return out;
 	}
-*/
+
     template<typename PointT>
 	bool loadCustomFrames(std::string output_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames)
 	{
@@ -231,6 +255,11 @@ namespace myFrame
         }
         std::sort(files.begin(), files.end());
 
+        int division_num = myFunction::getDivNum<size_t, size_t>(files.size());
+
+        customFrames = loadCustomFramesPart<decltype(files.begin()), PointT>(division_num, files.begin(), files.end());
+
+/*
         for(int i = 0; i < files.size(); i++)
         {
             boost::shared_ptr<CustomFrame<PointT>> customFrame(new CustomFrame<PointT>);
@@ -258,7 +287,7 @@ namespace myFrame
                 }
             }
             customFrames.push_back(customFrame);
-        }
+        }*/
     }
 	template<typename PointT>
 	bool getCustomFrames(std::string &bagFile, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, std::string &bridge_file, std::string &tmp_dir, int number = std::numeric_limits<int>::max())

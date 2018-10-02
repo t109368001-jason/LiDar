@@ -912,7 +912,7 @@ namespace myFunction
 		result.z = v.z*t;
 	}
 	template<typename RandomIt1, typename RandomIt2> 
-	int getDivNum(RandomIt1 total, RandomIt2 part)
+	int getDivNum(RandomIt1 total, RandomIt2 part = (RandomIt2)(std::thread::hardware_concurrency()+1))
 	{
 		return std::ceil((double)(total)/(double)(part));
 	}		
