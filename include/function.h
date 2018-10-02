@@ -41,7 +41,7 @@ namespace myFunction
 		return std::sqrt(x*x+y*y+z*z);
 	}
 
-	void XYZ_to_Sphere(double &radius, double &phi, double &theta, const double x, const double y, const double z)
+	void XYZ_to_Sphere(const double x, const double y, const double z, double &radius, double &phi, double &theta)
 	{
 		radius = norm(x,y,z);
 		theta = acos(z / radius);
@@ -60,6 +60,101 @@ namespace myFunction
 		}
 	}
 
+	double getPhi(const double x, const double y)
+	{
+		double phi = atan(y / x);
+		
+		if (x < 0.0)
+		{
+			if(y < 0.0)
+			{
+				phi -= M_PI;
+			}
+			else
+			{
+				phi += M_PI;
+			}
+		}
+		return phi;
+	}
+	
+	double getTheta(const double x, const double y, const double z)
+	{
+		double radius = norm(x,y,z);
+		double theta = acos(z / radius);
+		
+		return theta;
+	}
+
+	double rotateX(double &x, double &y, double &z, const double angle)
+	{
+		double x_ = x;
+		double y_ = y;
+		double z_ = z;
+
+		x = x_;
+		y = y_*std::cos(angle) + z_*std::sin(angle);
+		z = y_*(-std::sin(angle)) + z_*std::cos(angle);
+	}
+
+	template<typename PointT>
+	double rotateX(PointT &point, const double angle)
+	{
+		double x_ = point.x;
+		double y_ = point.y;
+		double z_ = point.z;
+
+		point.x = x_;
+		point.y = y_*std::cos(angle) + z_*std::sin(angle);
+		point.z = y_*(-std::sin(angle)) + z_*std::cos(angle);
+	}
+
+	double rotateY(double &x, double &y, double &z, const double angle)
+	{
+		double x_ = x;
+		double y_ = y;
+		double z_ = z;
+
+		x = x_*std::cos(angle) + z_*(-std::sin(angle));
+		y = y_;
+		z = x_*std::sin(angle) + z_*std::cos(angle);
+	}
+
+	template<typename PointT>
+	double rotateY(PointT &point, const double angle)
+	{
+		double x_ = point.x;
+		double y_ = point.y;
+		double z_ = point.z;
+
+		point.x = x_*std::cos(angle) + z_*(-std::sin(angle));
+		point.y = y_;
+		point.z = x_*std::sin(angle) + z_*std::cos(angle);
+	}
+
+	double rotateZ(double &x, double &y, double &z, const double &angle)
+	{
+		double x_ = x;
+		double y_ = y;
+		double z_ = z;
+
+		z = z_;
+		x = x_*std::cos(angle) + y_*std::sin(angle);
+		y = x_*(-std::sin(angle)) + y_*std::cos(angle);
+	}
+
+	template<typename PointT>
+	double rotateZ(PointT &point, const double &angle)
+	{
+		double x_ = point.x;
+		double y_ = point.y;
+		double z_ = point.z;
+
+		point.z = z_;
+		point.x = x_*std::cos(angle) + y_*std::sin(angle);
+		point.y = x_*(-std::sin(angle)) + y_*std::cos(angle);
+	}
+
 	template<typename Type>
 	std::string commaFix(Type input)
 	{
@@ -69,6 +164,74 @@ namespace myFunction
         
 		return ss.str();
 	}
+
+	bool fileExists(std::string &filename)
+	{
+		struct stat buffer;
+		return stat(filename.c_str(), &buffer) == 0;
+	}
+
+	pcl::PolygonMesh stl_to_mesh(std::string filename)
+	{
+		pcl::PolygonMesh mesh;
+		pcl::io::loadPolygonFileSTL(filename, mesh);
+
+		return mesh;
+	}
+
+#pragma endregion basic
+	
+#pragma region value_to_RGB
+
+	void value_to_RGB(const double value, const double min, const double max, uint8_t &r, uint8_t &g, uint8_t &b)
+	{
+		double temp = (value - min)/(max-min);
+		if(temp > 1.0) temp = 1.0;
+		else if(temp < 0.0) temp = 0.0;
+
+		temp *= 1023;
+
+		if(temp < 128.0)
+		{
+			r = 0;
+			g = 0;
+			b = 128 + temp;
+		}
+		else if(temp < (384))
+		{
+			r = 0;
+			g = temp - 128;
+			b = 255;
+		}
+		else if(temp < (640))
+		{
+			r = (temp - 384);
+			g = 255;
+			b = 255 - (temp - 384);
+		}
+		else if(temp < (896))
+		{
+			r = 255;
+			g = 255 - (temp - 640);
+			b = 0;
+		}
+		else if(temp < (1024))
+		{
+			r = 255 - (temp - 896);
+			g = 0;
+			b = 0;
+		}
+		else
+		{
+			r = 127;
+			g = 0;
+			b = 0;
+		}
+	}
+
+#pragma endregion value_to_RGB
+
+#pragma region getNearestPointsDistance
 
 	//取得點雲中最近的兩個點距離
 	template<typename RandomIt, typename PointT>
@@ -112,6 +275,9 @@ namespace myFunction
 		return getNearestPointsDistancePart<decltype(cloud->points.begin()), PointT>(division_num, tree, cloud->points.begin(), cloud->points.end());
 	}
 
+#pragma endregion getNearestPointsDistance
+
+#pragma region getFarthestPointsDistance
 	//取得點雲中最遠的兩個點距離
 	template<typename RandomIt>
 	double getFarthestPointsDistancePart(int division_num, RandomIt beg1, RandomIt end1, RandomIt beg2, RandomIt end2)
@@ -150,6 +316,10 @@ namespace myFunction
 		
 		return getFarthestPointsDistancePart<decltype(cloud->points.begin())>(division_num, cloud->points.begin(), cloud->points.end(), cloud->points.begin(), cloud->points.end());
 	}
+
+#pragma endregion getFarthestPointsDistance
+
+#pragma region getNearOrFarthestPoint
 
 	//取得點雲中距離point最遠的點
 	template<typename RandomIt, typename PointT>
@@ -190,13 +360,9 @@ namespace myFunction
 		return getNearOrFarthestPointPart<decltype(cloud->points.begin()), PointT>(division_num, Nearest, point, cloud->points.begin(), cloud->points.end());
 	}
 
-	pcl::PolygonMesh stl_to_mesh(std::string filename)
-	{
-		pcl::PolygonMesh mesh;
-		pcl::io::loadPolygonFileSTL(filename, mesh);
+#pragma endregion getNearOrFarthestPoint
 
-		return mesh;
-	}
+#pragma region pcd_to_poissonMesh
 
 	void pcd_to_poissonMesh(std::string filename, pcl::PolygonMesh &poission)
 	{
@@ -275,8 +441,8 @@ namespace myFunction
 		return poission;
 	}
 	
-#pragma endregion basic
-	
+#pragma endregion pcd_to_poissonMesh
+
 #pragma region loadMultiPCD
 
 	template<typename RandomIt1, typename RandomIt2, typename PointT>
@@ -362,8 +528,11 @@ namespace myFunction
 				}
 				else
 				{
-					uint8_t shift = ((std::sqrt(point.x*point.x+point.y*point.y+point.z*point.z) - min_Distance) * 24.0 / div);
-					rgb = (static_cast<uint32_t>(255) << shift) >> 4;
+					uint8_t r;
+					uint8_t g;
+					uint8_t b;
+					value_to_RGB(std::sqrt(point.x*point.x+point.y*point.y+point.z*point.z), min_Distance, div + min_Distance, r, g, b);
+					rgb = (static_cast<uint32_t>(r) << 16 | static_cast<uint32_t>(g) << 8 | static_cast<uint32_t>(b));
 				}
 				
 				point.rgb = *reinterpret_cast<float*>(&rgb);
@@ -598,6 +767,8 @@ namespace myFunction
 
 #pragma endregion points_to_pcl
 
+#pragma region getChanges
+
 	template<typename PointT>
 	typename pcl::PointCloud<PointT>::Ptr getChanges(typename pcl::PointCloud<PointT>::Ptr cloud1, typename pcl::PointCloud<PointT>::Ptr cloud2, double resolution)
 	{
@@ -623,6 +794,8 @@ namespace myFunction
 		return temp;
 	}
 
+#pragma endregion getChanges
+
 #pragma region printCamera
 
 	void printCamera(pcl::visualization::Camera camera)
@@ -635,7 +808,7 @@ namespace myFunction
 
 #pragma endregion printCamera
 
-#pragma region testing
+#pragma region showCloud
 
 	void showCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::string name)
 	{
@@ -643,32 +816,25 @@ namespace myFunction
 		viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
 		viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
 	}
+
+#pragma endregion showCloud
+
+#pragma region updateCloud
+
 	void updateCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::string name)
 	{
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 
-            if( !viewer->updatePointCloud<pcl::PointXYZRGB> (cloud, rgb, name))
-            {
-                viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
-				viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
-            }
+		if( !viewer->updatePointCloud<pcl::PointXYZRGB> (cloud, rgb, name))
+		{
+			viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
+			viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
+		}
 	}
 
-	template<typename PointT>
-	double getSimilarity(typename pcl::PointCloud<PointT>::Ptr cloud1, typename pcl::PointCloud<PointT>::Ptr cloud2, double resolution)
-	{
-        pcl::octree::OctreePointCloudChangeDetector<PointT> octree (resolution);
-        std::vector<int> newPointIdxVector;
+#pragma endregion updateCloud
 
-        octree.setInputCloud(cloud1);
-        octree.addPointsFromInputCloud();
-        octree.switchBuffers ();
-        octree.setInputCloud (cloud2);
-        octree.addPointsFromInputCloud ();
-        octree.getPointIndicesFromNewVoxels (newPointIdxVector);
-
-        return 1 - ((double)newPointIdxVector.size() / (double)cloud2->points.size());
-	}
+#pragma region millisecondToString
 
 	std::string millisecondToString(std::chrono::milliseconds &duration, bool isFileName = true)
 	{
@@ -697,11 +863,29 @@ namespace myFunction
 		return stream.str();
 	}
 
-	bool fileExists(std::string &filename)
+#pragma endregion millisecondToString
+
+#pragma region getSimilarity
+
+	template<typename PointT>
+	double getSimilarity(typename pcl::PointCloud<PointT>::Ptr cloud1, typename pcl::PointCloud<PointT>::Ptr cloud2, double resolution)
 	{
-		struct stat buffer;
-		return stat(filename.c_str(), &buffer) == 0;
+        pcl::octree::OctreePointCloudChangeDetector<PointT> octree (resolution);
+        std::vector<int> newPointIdxVector;
+
+        octree.setInputCloud(cloud1);
+        octree.addPointsFromInputCloud();
+        octree.switchBuffers ();
+        octree.setInputCloud (cloud2);
+        octree.addPointsFromInputCloud ();
+        octree.getPointIndicesFromNewVoxels (newPointIdxVector);
+
+        return 1 - ((double)newPointIdxVector.size() / (double)cloud2->points.size());
 	}
+
+#pragma endregion getSimilarity
+
+#pragma region bagFileNameToMilliseconds
 
 	std::chrono::milliseconds bagFileNameToMilliseconds(std::string &bagFileName)
 	{
@@ -715,7 +899,19 @@ namespace myFunction
 		return std::chrono::milliseconds(0);
 	}
 
-#pragma endregion testing
+#pragma endregion bagFileNameToMilliseconds
+
+	template<typename PointT>
+	PointT vector_plane_cross_point(const PointT &v, const PointT &n, const PointT &p0)
+	{
+		PointT result;
+		double t = (p0.x*n.x+p0.y*n.y+p0.z*n.z)/(v.x*n.x+v.y*n.y+v.z*n.z);
+
+		result.x = v.x*t;
+		result.y = v.y*t;
+		result.z = v.z*t;
+	}
+
 
 }
 #endif
