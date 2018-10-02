@@ -917,5 +917,62 @@ namespace myFunction
 		return std::ceil((double)(total)/(double)(part));
 	}		
 
+	void createColor(int number, uint8_t &r, uint8_t &g, uint8_t &b)
+	{
+		switch(number)
+		{
+			case 0:
+				r = 255;
+				g = 255;
+				b = 255;
+				break;
+			case 1:
+				r = 255;
+				g = 0;
+				b = 0;
+				break;
+			case 2:
+				r = 0;
+				g = 255;
+				b = 0;
+				break;
+			case 3:
+				r = 0;
+				g = 0;
+				b = 255;
+				break;
+			case 4:
+				r = 255;
+				g = 255;
+				b = 0;
+				break;
+			case 5:
+				r = 255;
+				g = 0;
+				b = 255;
+				break;
+			case 6:
+				r = 0;
+				g = 255;
+				b = 255;
+				break;
+			case 7:
+				r = 255;
+				g = 128;
+				b = 0;
+				break;
+			case 8:
+				r = 128;
+				g = 0;
+				b = 255;
+				break;
+			case 9:
+				r = 0;
+				g = 255;
+				b = 128;
+				break;
+		}
+	}
+
 }
 #endif

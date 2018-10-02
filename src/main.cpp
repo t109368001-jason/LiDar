@@ -45,7 +45,7 @@ void pcl_viewer()
     std::string bridgeFile = "/home/xian-jie/workspace/github/tmp.txt";
     std::string tmp_dir = "tmp/";
     std::string output_dir = "data/";
-    
+
     if(!myFunction::fileExists(bridgeFile))
     {
         std::cerr << "bridge file not found" << std::endl;
@@ -97,19 +97,8 @@ void pcl_viewer()
     std::cerr << "Total frame : " << customFrames.size();
     std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     ////////////////////////////////////////////////////////////////*/
-    return;
-    ////////////////////////////////////////////////////////////////
-    double w = 1280.0;
-    double h = 720.0;
-    std::cerr << "Point cloud object segmentation...", tt.tic();
-    object_segmentation.setCameraParameter("CC", w, h, 89.7974 * M_PI / 180.0, 89.7974 * M_PI / 180.0);
-    object_segmentation.setBound(0.0, 0.0, 640.0, 360.0);
-    
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << '\n';
-    ////////////////////////////////////////////////////////////////*/
 
-    ////////////////////////////////////////////////////////////////
+    /*///////////////////////////////////////////////////////////////
     std::cerr << "Loading point cloud...", tt.tic();
     if(pcl::io::loadPCDFile (backgroundCloudFile, *backgroundCloud) == -1)return;
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
@@ -117,21 +106,45 @@ void pcl_viewer()
     std::cerr << '\n';
     ////////////////////////////////////////////////////////////////*/
     
-
     /*///////////////////////////////////////////////////////////////
+    std::cerr << "Point cloud background segmentation...", tt.tic();
     //double resolution;
     //cout << "Please input background segmentation resolution: "; 
     //cin >> resolution;
-    std::cerr << "Point cloud background segmentation...", tt.tic();
-    //pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::fillColor<PointT>(backgroundCloud, 255, 0, 0);
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::XYZ_to_XYZRGB<PointT>(backgroundCloud);
-    background_segmentation.setBackground(backgroundCloud);
-    //myFunction::showCloud(viewer, backgroundCloud_view, "backgroundCloud");
+    background_segmentation.setBackground(backgroundCloud, 0.1);
 
+    for(int i = 0; i < customFrames.size(); i++)
+    {
+        customFrames[i]->entire_cloud = background_segmentation.compute(customFrames[i]->entire_cloud);
+    }
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     std::cerr << '\n';
     ////////////////////////////////////////////////////////////////*/
     
+    ////////////////////////////////////////////////////////////////
+    std::cerr << "Custom frames object segmentation...", tt.tic();
+    double w = 1280.0;
+    double h = 720.0;
+    object_segmentation.setCameraParameter("UL", w, h, 89.7974 * M_PI / 180.0, 69.4 * M_PI / 180.0);
+    
+    for(int i = 0; i < 1; i++)
+    {
+        customFrames[i]->objectSegmentation(tmp_dir, object_segmentation);
+    }
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << "Total frame : " << customFrames.size();
+    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cerr << '\n';
+    ////////////////////////////////////////////////////////////////*/
+
+    /*///////////////////////////////////////////////////////////////
+    std::cerr << "Point cloud object segmentation...", tt.tic();
+    
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << '\n';
+    ////////////////////////////////////////////////////////////////*/
+
+
     viewer.reset(new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setSize(1280, 720);
     viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*) NULL);
@@ -143,20 +156,23 @@ void pcl_viewer()
     viewer->spinOnce();
     viewer->getCameras(cameras);
 
+    for(int i = 0; i < customFrames[0]->yolo_objects.size(); i++)
+    {
+        myFunction::showCloud(viewer, customFrames[0]->yolo_objects[i]->cloud, std::to_string(i) + customFrames[0]->yolo_objects[i]->name);
+    }
+
     //pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp = object_segmentation.division(cameras[0], backgroundCloud, false);
     //pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::fillColor<PointT>(backgroundCloud, 255, 0, 0);
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::XYZ_to_XYZRGB<PointT>(backgroundCloud, false);
+    //pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::XYZ_to_XYZRGB<PointT>(backgroundCloud, false);
 
-    myFunction::showCloud(viewer, backgroundCloud_view, "Cloud_view1");
+    //myFunction::showCloud(viewer, backgroundCloud_view, "Cloud_view1");
 
-    viewer->spinOnce();
+    viewer->spin();
 
     while( !viewer->wasStopped())
     {
         viewer->spinOnce();
         viewer->getCameras(cameras);
-
-        myFunction::updateCloud(viewer, object_segmentation.division(cameras[0], backgroundCloud_view, false), "Cloud_view1");
 
         //myFunction::printCamera(cameras[0]);
         boost::this_thread::sleep(boost::posix_time::milliseconds(50));

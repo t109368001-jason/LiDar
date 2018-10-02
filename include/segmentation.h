@@ -110,10 +110,6 @@ namespace myClass
 
 			bool keep_Inside;
 
-			PointT camera_pos;
-			PointT camera_view;
-			PointT camera_focal;
-
 		public:
 			objectSegmentation()
 			{
@@ -212,16 +208,6 @@ namespace myClass
 				typename pcl::PointCloud<PointT>::Ptr cloud(new typename pcl::PointCloud<PointT>);
 				this->keep_Inside = keep_Inside;
 
-				this->camera_pos.x = camera.pos[0];
-				this->camera_pos.y = camera.pos[1];
-				this->camera_pos.z = camera.pos[2];
-				this->camera_view.x = camera.view[0];
-				this->camera_view.y = camera.view[1];
-				this->camera_view.z = camera.view[2];
-				this->camera_focal.x = camera.focal[0];
-				this->camera_focal.y = camera.focal[1];
-				this->camera_focal.z = camera.focal[2];
-
 				int division_num = std::ceil(input->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
 				
 				cloud->points = divisionPart(division_num, input->points.begin(), input->points.end());
@@ -238,49 +224,6 @@ namespace myClass
 
 				double X_Pojection = (point.x * this->camera_Depth) / point.z;
 				double Y_Pojection = (point.y * this->camera_Depth) / point.z;
-
-				if(X_Pojection < this->segmentation_Left_Bound) { return false; }
-				if(X_Pojection > this->segmentation_Right_Bound) { return false; }
-				if(Y_Pojection < this->segmentation_Up_Bound) { return false; }
-				if(Y_Pojection > this->segmentation_Down_Bound) { return false; }
-
-				return true;
-			}
-
-			bool pointIsInside2(const PointT &point)
-			{
-				PointT point_;
-				if(std::fabs(point.x*point.y*point.z) == 0.0){ return false; }
-
-				PointT camera_view_direction;
-				camera_view_direction.x = this->camera_focal.x - this->camera_pos.x;
-				camera_view_direction.y = this->camera_focal.y - this->camera_pos.y;
-				camera_view_direction.z = this->camera_focal.z - this->camera_pos.z;
-
-				point_.x = point.x - this->camera_pos.x;
-				point_.y = point.y - this->camera_pos.y;
-				point_.z = point.z - this->camera_pos.z;
-
-				double rotation_theta_y = -(myFunction::getPhi(camera_view_direction.x, camera_view_direction.z) - M_PI_2);
-
-				myFunction::rotateY(point_, rotation_theta_y);
-				myFunction::rotateY(camera_view, rotation_theta_y);
-				myFunction::rotateY(camera_view_direction, rotation_theta_y);
-
-				double rotation_theta_x = -(myFunction::getTheta(camera_view_direction.x, camera_view_direction.z, -camera_view_direction.y) - M_PI_2);
-
-				myFunction::rotateX(point_, rotation_theta_x);
-				myFunction::rotateX(camera_view, rotation_theta_x);
-				myFunction::rotateX(camera_view_direction, rotation_theta_x);
-	
-				double rotation_theta_z = -(myFunction::getTheta(camera_view.x, camera_view.z, -camera_view.y));
-
-				myFunction::rotateZ(point_, rotation_theta_x);
-				myFunction::rotateZ(camera_view, rotation_theta_x);
-				myFunction::rotateZ(camera_view_direction, rotation_theta_x);
-
-				double X_Pojection = (point_.x * this->camera_Depth) / point_.z;
-				double Y_Pojection = (point_.y * this->camera_Depth) / point_.z;
 
 				if(X_Pojection < this->segmentation_Left_Bound) { return false; }
 				if(X_Pojection > this->segmentation_Right_Bound) { return false; }

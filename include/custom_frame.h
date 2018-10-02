@@ -14,11 +14,6 @@ namespace myFrame
         public:
             std::string name;
             typename pcl::PointCloud<PointT>::Ptr cloud;
-            YoloObject(const std::string name, typename pcl::PointCloud<PointT>::Ptr cloud)
-            {
-                this->name = name;
-                this->cloud = cloud;
-            }
     };
 
     template<typename PointT>
@@ -97,21 +92,15 @@ namespace myFrame
                 std::vector<boost::shared_ptr<YoloObject<PointT>>> yolo_objects;
             }
 
-            bool getTxt(std::string bridge_file)
+            bool objectSegmentation(std::string tmp_dir, myClass::objectSegmentation<PointT> object_segmentation)
             {
-                std::string txt_file = this->file_name + ".txt";
+                std::string txt_file = tmp_dir + this->file_name + ".txt";
 
-                while(1)
+                if(!myFunction::fileExists(txt_file))
                 {
-                    if(myFunction::fileExists(txt_file))
-                    {
-                        std::cerr << "Yolo detection done" << std::endl;
-                        break;
-                    }
-                    std::cerr << "Yolo detecting..." << '\r' << std::flush;
-                    boost::this_thread::sleep(boost::posix_time::milliseconds(10));
+                    std::cerr << txt_file << " not found\n";
+                    return false;
                 }
-
                 std::ifstream ifs;
                 ifs.open(txt_file);
                 std::string line;
@@ -131,11 +120,23 @@ namespace myFrame
                     vector<string> strs;
                     boost::split(strs,lines[i],boost::is_any_of(" "));
 
-                    //boost::shared_ptr<YoloObject<PointT>> temp(new YoloObject<PointT>(strs[0], std::stod(strs[1]), std::stod(strs[2]), std::stod(strs[3]), std::stod(strs[4])));
+                    boost::shared_ptr<YoloObject<PointT>> temp(new YoloObject<PointT>);
+                    temp->name = strs[0];
+                    
+                    object_segmentation.setBound(std::stod(strs[1]), std::stod(strs[2]), std::stod(strs[3]), std::stod(strs[4]));
+                    temp->cloud = object_segmentation.division(this->entire_cloud);
+                    
+                    uint8_t r;
+                    uint8_t g;
+                    uint8_t b;
 
-                    //yolo_objects.push_back(temp);
+                    myFunction::createColor(i, r, g, b);
+
+                    temp->cloud = myFunction::fillColor<PointT>(temp->cloud, r, g, b);
+                    
+                    //boost::shared_ptr<YoloObject<PointT>> temp(new YoloObject<PointT>(strs[0], std::stod(strs[1]), std::stod(strs[2]), std::stod(strs[3]), std::stod(strs[4])));
+                    if(temp->cloud->points.size()) yolo_objects.push_back(temp);
                 }
-                std::cerr << yolo_objects.size() << " objects" << std::endl;
             }
 
             friend ostream& operator<<(ostream &out, CustomFrame &obj)
@@ -206,6 +207,8 @@ namespace myFrame
 			{
                 boost::shared_ptr<CustomFrame<PointT>> customFrame(new CustomFrame<PointT>);
                 std::ifstream ifs((*it));
+
+                customFrame->file_name = boost::filesystem::path{(*it)}.stem().string();
                 while(!ifs.eof())
                 {
                     std::string tmp;
@@ -213,6 +216,7 @@ namespace myFrame
 
                     std::vector<std::string> strs;
                     boost::split(strs, tmp, boost::is_any_of("="));
+
                     if(strs[0] == "time_stamp")
                     {
                         customFrame->time_stamp = std::chrono::milliseconds(std::stoll(strs[1]));
@@ -254,7 +258,7 @@ namespace myFrame
             }
         }
         std::sort(files.begin(), files.end());
-
+        
         int division_num = myFunction::getDivNum<size_t, size_t>(files.size());
 
         customFrames = loadCustomFramesPart<decltype(files.begin()), PointT>(division_num, files.begin(), files.end());
