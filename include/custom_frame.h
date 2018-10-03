@@ -70,7 +70,7 @@ namespace myFrame
                 return true;
             }
             
-            bool save(std::string output_dir)
+            bool save(std::string output_dir, bool compress = true)
             {
                 std::string file_name = output_dir + this->file_name;
                 std::string txt_file = file_name + ".txt";
@@ -81,15 +81,73 @@ namespace myFrame
                 ofs << "entire_cloud=" << pcd_file << std::endl;
                 pcl::io::savePCDFileBinary(pcd_file, *(this->entire_cloud));
                 ofs << "objects=" << this->yolo_objects.size() << std::endl;
-                for(int i = 0; i < this->yolo_objects.size(); i++)
+                if(compress)
                 {
-                    std::stringstream tmp;
-                    tmp << file_name << "_" << i << ".pcd";
-                    ofs << i << "=" << tmp.str() << std::endl;
-                    pcl::io::savePCDFileBinary(tmp.str(), *(this->yolo_objects[i]->cloud));
+                    for(int i = 0; i < this->yolo_objects.size(); i++)
+                    {
+                        std::stringstream tmp;
+                        tmp << file_name << "_" << i << ".pcd";
+                        ofs << i << '_' << this->yolo_objects[i]->name << "=" << tmp.str() << std::endl;
+
+                        pcl::io::savePCDFileBinaryCompressed(tmp.str(), *(this->yolo_objects[i]->cloud));
+                    }
+                }
+                else
+                {
+                    for(int i = 0; i < this->yolo_objects.size(); i++)
+                    {
+                        std::stringstream tmp;
+                        tmp << file_name << "_" << i << ".pcd";
+                        ofs << i << '_' << this->yolo_objects[i]->name << "=" << tmp.str() << std::endl;
+
+                        pcl::io::savePCDFileBinary(tmp.str(), *(this->yolo_objects[i]->cloud));
+                    }
                 }
 
                 std::vector<boost::shared_ptr<YoloObject<PointT>>> yolo_objects;
+            }
+
+            bool load(std::string txt_file)
+            {
+                std::ifstream ifs(txt_file);
+
+                this->file_name = boost::filesystem::path{txt_file}.stem().string();
+                while(!ifs.eof())
+                {
+                    std::string tmp;
+                    ifs >> tmp;
+
+                    std::vector<std::string> strs;
+                    boost::split(strs, tmp, boost::is_any_of("="));
+
+                    if(strs.size() < 2) continue;
+
+                    if(strs[0] == "time_stamp")
+                    {
+                        this->time_stamp = std::chrono::milliseconds(std::stoll(strs[1]));
+                    }
+                    else if(strs[0] == "entire_cloud")
+                    {
+                        typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
+                        pcl::io::loadPCDFile(strs[1], *cloud);
+                        this->entire_cloud = cloud;
+                    }
+                    else if(strs[0] == "objects")
+                    {
+                        //this->yolo_objects.resize(std::stoi(strs[1]));
+                    }
+                    else
+                    {
+                        std::vector<std::string> strs2;
+                        boost::split(strs2, strs[0], boost::is_any_of("_"));
+                        boost::shared_ptr<YoloObject<PointT>> yoloObject(new YoloObject<PointT>);
+                        yoloObject->name = strs2[1];
+                        typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
+                        pcl::io::loadPCDFile(strs[1], *cloud);
+                        yoloObject->cloud = cloud;
+                        this->yolo_objects.push_back(yoloObject);
+                    }
+                }
             }
 
             bool objectSegmentation(std::string tmp_dir, myClass::objectSegmentation<PointT> object_segmentation)
@@ -151,6 +209,15 @@ namespace myFrame
                 return out;
             }
 
+            friend boost::shared_ptr<pcl::visualization::PCLVisualizer> operator<<(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, CustomFrame &obj)
+            {
+                for(int i = 0; i < obj.yolo_objects.size(); i++)
+                {
+                    myFunction::showCloud(viewer, obj.yolo_objects[i]->cloud, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name);
+                }
+                return viewer;
+            }
+
         private:
             std::unordered_map<int, std::unordered_set<unsigned long long>> _framesMap;
 
@@ -206,32 +273,9 @@ namespace myFrame
 			for(auto it = beg; it != end; ++it)
 			{
                 boost::shared_ptr<CustomFrame<PointT>> customFrame(new CustomFrame<PointT>);
-                std::ifstream ifs((*it));
+                
+                customFrame->load((*it));
 
-                customFrame->file_name = boost::filesystem::path{(*it)}.stem().string();
-                while(!ifs.eof())
-                {
-                    std::string tmp;
-                    ifs >> tmp;
-
-                    std::vector<std::string> strs;
-                    boost::split(strs, tmp, boost::is_any_of("="));
-
-                    if(strs[0] == "time_stamp")
-                    {
-                        customFrame->time_stamp = std::chrono::milliseconds(std::stoll(strs[1]));
-                    }
-                    else if(strs[0] == "entire_cloud")
-                    {
-                        typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
-                        pcl::io::loadPCDFile(strs[1], *cloud);
-                        customFrame->entire_cloud = cloud;
-                    }
-                    else if(strs[0] == "objects")
-                    {
-                        
-                    }
-                }
                 customFrames.push_back(customFrame);
 			}
 			return customFrames;
@@ -262,37 +306,40 @@ namespace myFrame
         int division_num = myFunction::getDivNum<size_t, size_t>(files.size());
 
         customFrames = loadCustomFramesPart<decltype(files.begin()), PointT>(division_num, files.begin(), files.end());
-
-/*
-        for(int i = 0; i < files.size(); i++)
-        {
-            boost::shared_ptr<CustomFrame<PointT>> customFrame(new CustomFrame<PointT>);
-            std::ifstream ifs(files[i]);
-            while(!ifs.eof())
-            {
-                std::string tmp;
-                ifs >> tmp;
-
-                std::vector<std::string> strs;
-                boost::split(strs, tmp, boost::is_any_of("="));
-                if(strs[0] == "time_stamp")
-                {
-                    customFrame->time_stamp = std::chrono::milliseconds(std::stoll(strs[1]));
-                }
-                else if(strs[0] == "entire_cloud")
-                {
-		            typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
-                    pcl::io::loadPCDFile(strs[1], *cloud);
-                    customFrame->entire_cloud = cloud;
-                }
-                else if(strs[0] == "objects")
-                {
-                    
-                }
-            }
-            customFrames.push_back(customFrame);
-        }*/
     }
+    
+	template<typename RandomIt>
+	int saveCustomFramesPart(int division_num, std::string output_dir, RandomIt beg, RandomIt end)
+	{
+		auto len = end - beg;
+
+		if(len < division_num)
+		{
+            int out;
+			for(auto it = beg; it != end; ++it)
+			{
+                (*it)->save(output_dir);
+			}
+			return out;
+		}
+		auto mid = beg + len/2;
+		auto handle = std::async(std::launch::async, saveCustomFramesPart<RandomIt>, division_num, output_dir, beg, mid);
+		auto out = saveCustomFramesPart<RandomIt>(division_num, output_dir, mid, end);
+		auto out1 = handle.get();
+
+		return out + out1;
+	}
+
+    template<typename PointT>
+	bool saveCustomFrames(std::string output_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames)
+	{
+        int division_num = myFunction::getDivNum<size_t, size_t>(customFrames.size());
+
+        int count = saveCustomFramesPart(division_num, output_dir, customFrames.begin(), customFrames.end());
+    
+        return (count == customFrames.size())? true : false;
+    }
+    
 	template<typename PointT>
 	bool getCustomFrames(std::string &bagFile, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, std::string &bridge_file, std::string &tmp_dir, int number = std::numeric_limits<int>::max())
 	{
