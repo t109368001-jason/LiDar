@@ -31,34 +31,6 @@ namespace myClass
 				this->isSet = true;
 			}
 
-			template<typename RandomIt, typename RandomIt2>
-			RandomIt2 computePart(const int &division_num, const RandomIt2 &points, const RandomIt &beg, const RandomIt &end)
-			{
-				auto len = end - beg;
-
-				if (len < division_num)
-				{
-					RandomIt2 out;
-					for(auto it = beg; it != end; ++it)
-					{
-						if (static_cast<int> ((*it)->getSize ()) >= 0)
-						{
-							out.push_back(points[(*it)->getPointIndex()]);
-						}
-					}
-					return out;
-				}
-
-				auto mid = beg + len/2;
-				auto handle = std::async(std::launch::async, &backgroundSegmentation::computePart<RandomIt, RandomIt2>, this, division_num, points, beg, mid);
-				auto out(computePart<RandomIt, RandomIt2>(division_num, points, mid, end));
-				auto out1(handle.get());
-				
-				std::copy(out1.begin(),  out1.end(), std::back_inserter(out));
-
-				return out;
-			}
-
 			typename pcl::PointCloud<PointT>::Ptr compute(const typename pcl::PointCloud<PointT>::Ptr &cloud)
 			{
 				if(!isSet)

@@ -810,18 +810,26 @@ namespace myFunction
 
 #pragma region showCloud
 
-	void showCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::string name)
+	void showCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::string name, std::string text = "", bool text3D = false)
 	{
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 		viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
 		viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
+		if(text3D)
+		{
+			 viewer->addText3D(text, cloud->points[0], 0.01, 1.0, 1.0, 1.0, name + "_text");
+		}
+		else
+		{
+			viewer->removeText3D(name + "_text");
+		}
 	}
 
 #pragma endregion showCloud
 
 #pragma region updateCloud
 
-	void updateCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::string name)
+	void updateCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::string name, std::string text = "", bool text3D = false)
 	{
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 
@@ -829,6 +837,14 @@ namespace myFunction
 		{
 			viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
 			viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
+		}
+		if(text3D)
+		{
+			 viewer->addText3D(text, cloud->points[0], 1.0, 1.0, 1.0, 1.0, name + "_text");
+		}
+		else
+		{
+			viewer->removeText3D(name + "_text");
 		}
 	}
 
@@ -971,6 +987,40 @@ namespace myFunction
 				g = 255;
 				b = 128;
 				break;
+		}
+	}
+
+	void name_to_color(std::string name, uint8_t &r, uint8_t &g, uint8_t &b)
+	{
+		if(name == "car")
+		{
+			r = 255;
+			g = 255;
+			b = 255;
+		}
+		else if(name == "cup")
+		{
+			r = 0;
+			g = 0;
+			b = 255;
+		}
+		else if(name == "person")
+		{
+			r = 255;
+			g = 0;
+			b = 128;
+		}
+		else if(name == "chair")
+		{
+			r = 200;
+			g = 150;
+			b = 0;
+		}
+		else
+		{
+			r = 64;
+			g = 64;
+			b = 64;
 		}
 	}
 

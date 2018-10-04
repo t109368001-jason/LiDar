@@ -104,11 +104,35 @@ void pcl_viewer()
     
     /*///////////////////////////////////////////////////////////////
     std::cerr << "load custom frames...", tt.tic();
-    myFrame::loadCustomFrames(output_dir, customFrames);
+    myFrame::loadCustomFrames(output_dir, customFrames, true);
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     std::cerr << "Total frame : " << customFrames.size();
     std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     ////////////////////////////////////////////////////////////////*/
+
+    ////////////////////////////////////////////////////////////////
+    std::cerr << "Loading point cloud...", tt.tic();
+    if(pcl::io::loadPCDFile(backgroundCloudFile, *backgroundCloud) == -1)return;
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << "backgroundCloud: " << backgroundCloud->points.size() << " points\n";
+    std::cerr << '\n';
+    pcl::io::savePCDFileBinaryCompressed(backgroundCloudFile, *backgroundCloud);
+    ////////////////////////////////////////////////////////////////*/
+    
+    ////////////////////////////////////////////////////////////////
+    std::cerr << "Point cloud background segmentation...", tt.tic();
+    double resolution;
+    cout << "Please input background segmentation resolution: "; 
+    cin >> resolution;
+    background_segmentation.setBackground(backgroundCloud, resolution);
+
+    myFrame::backgroundSegmentationCustomFrames(background_segmentation, customFrames);
+
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << "Total frame : " << customFrames.size();
+    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    ////////////////////////////////////////////////////////////////*/
+    
 
     viewer.reset(new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setSize(1280, 720);
@@ -121,14 +145,18 @@ void pcl_viewer()
     viewer->spinOnce();
     viewer->getCameras(cameras);
 
+    
+
     viewer << *customFrames[0];
-    viewer << *customFrames[20];
 
     //pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp = object_segmentation.division(cameras[0], backgroundCloud, false);
     //pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::fillColor<PointT>(backgroundCloud, 255, 0, 0);
     //pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::XYZ_to_XYZRGB<PointT>(backgroundCloud, false);
 
-    //myFunction::showCloud(viewer, backgroundCloud_view, "Cloud_view1");
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::XYZ_to_XYZRGB<PointT>(backgroundCloud);
+
+    myFunction::showCloud(viewer, backgroundCloud_view, "backgroundCloud_view");
+    //myFunction::showCloud(viewer, Cloud_view1, "Cloud_view1");
 
     viewer->spin();
 
@@ -140,30 +168,6 @@ void pcl_viewer()
         //myFunction::printCamera(cameras[0]);
         boost::this_thread::sleep(boost::posix_time::milliseconds(50));
     }
-    /*///////////////////////////////////////////////////////////////
-    std::cerr << "Loading point cloud...", tt.tic();
-    if(pcl::io::loadPCDFile(backgroundCloudFile, *backgroundCloud) == -1)return;
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << "backgroundCloud: " << backgroundCloud->points.size() << " points\n";
-    std::cerr << '\n';
-    pcl::io::savePCDFileBinaryCompressed(backgroundCloudFile, *backgroundCloud);
-    ////////////////////////////////////////////////////////////////*/
-    
-    /*///////////////////////////////////////////////////////////////
-    std::cerr << "Point cloud background segmentation...", tt.tic();
-    //double resolution;
-    //cout << "Please input background segmentation resolution: "; 
-    //cin >> resolution;
-    background_segmentation.setBackground(backgroundCloud, 0.1);
-
-    for(int i = 0; i < customFrames.size(); i++)
-    {
-        customFrames[i]->entire_cloud = background_segmentation.compute(customFrames[i]->entire_cloud);
-    }
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << '\n';
-    ////////////////////////////////////////////////////////////////*/
-    
     /*///////////////////////////////////////////////////////////////
     auto depth_stream = selection.get_stream(RS2_STREAM_DEPTH)
                                 .as<rs2::video_stream_profile>();

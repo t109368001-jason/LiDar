@@ -16,6 +16,8 @@ namespace myFrame
             typename pcl::PointCloud<PointT>::Ptr cloud;
     };
 
+#pragma region CustomFrame
+
     template<typename PointT>
     class CustomFrame
     {
@@ -24,6 +26,8 @@ namespace myFrame
             std::chrono::milliseconds time_stamp;
             typename pcl::PointCloud<PointT>::Ptr entire_cloud;
             std::vector<boost::shared_ptr<YoloObject<PointT>>> yolo_objects;
+
+            bool entire_cloud_isSet;
 
             bool set(rs2::frameset &frameset, std::chrono::milliseconds &startTime, std::string &bridge_file, std::string &tmp_dir)
             {
@@ -66,11 +70,12 @@ namespace myFrame
                     points = rs2::pointcloud().calculate(frameDepth);
 
                     this->entire_cloud = myFunction::points_to_pcl<PointT>(points);
+                    entire_cloud_isSet = true;
                 }
                 return true;
             }
             
-            bool save(std::string output_dir, bool compress = true)
+            bool save(const std::string &output_dir, const bool &compress)
             {
                 std::string file_name = output_dir + this->file_name;
                 std::string txt_file = file_name + ".txt";
@@ -78,11 +83,14 @@ namespace myFrame
 
                 std::ofstream ofs(txt_file);
                 ofs << "time_stamp=" << this->time_stamp.count() << std::endl;
-                ofs << "entire_cloud=" << pcd_file << std::endl;
-                pcl::io::savePCDFileBinary(pcd_file, *(this->entire_cloud));
                 ofs << "objects=" << this->yolo_objects.size() << std::endl;
                 if(compress)
                 {
+                    ofs << "entire_cloud=" << pcd_file << std::endl;
+                    if(entire_cloud_isSet)
+                    {
+                        pcl::io::savePCDFileBinaryCompressed(pcd_file, *(this->entire_cloud));
+                    }
                     for(int i = 0; i < this->yolo_objects.size(); i++)
                     {
                         std::stringstream tmp;
@@ -94,6 +102,11 @@ namespace myFrame
                 }
                 else
                 {
+                    ofs << "entire_cloud=" << pcd_file << std::endl;
+                    if(entire_cloud_isSet)
+                    {
+                        pcl::io::savePCDFileBinary(pcd_file, *(this->entire_cloud));
+                    }
                     for(int i = 0; i < this->yolo_objects.size(); i++)
                     {
                         std::stringstream tmp;
@@ -107,7 +120,7 @@ namespace myFrame
                 std::vector<boost::shared_ptr<YoloObject<PointT>>> yolo_objects;
             }
 
-            bool load(std::string txt_file)
+            bool load(std::string txt_file, bool skip_entire_cloud)
             {
                 std::ifstream ifs(txt_file);
 
@@ -128,9 +141,13 @@ namespace myFrame
                     }
                     else if(strs[0] == "entire_cloud")
                     {
-                        typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
-                        pcl::io::loadPCDFile(strs[1], *cloud);
-                        this->entire_cloud = cloud;
+                        if(!skip_entire_cloud)
+                        {
+                            typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
+                            pcl::io::loadPCDFile(strs[1], *cloud);
+                            this->entire_cloud = cloud;
+                        }
+                        entire_cloud_isSet = !skip_entire_cloud;
                     }
                     else if(strs[0] == "objects")
                     {
@@ -197,6 +214,15 @@ namespace myFrame
                 }
             }
 
+            bool backgroundSegmentation(myClass::backgroundSegmentation<PointT> background_segmentation)
+            {
+                for(auto it = this->yolo_objects.begin(); it != this->yolo_objects.end(); ++it)
+                {
+                     (*it)->cloud = background_segmentation.compute((*it)->cloud);
+                }
+                return true;
+            }
+
             friend ostream& operator<<(ostream &out, CustomFrame &obj)
             {
                 out << "time : " << obj.time_stamp.count() << " ms" << std::endl;
@@ -213,7 +239,7 @@ namespace myFrame
             {
                 for(int i = 0; i < obj.yolo_objects.size(); i++)
                 {
-                    myFunction::showCloud(viewer, obj.yolo_objects[i]->cloud, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name);
+                    myFunction::showCloud(viewer, obj.yolo_objects[i]->cloud, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name, obj.yolo_objects[i]->name, true);
                 }
                 return viewer;
             }
@@ -262,8 +288,12 @@ namespace myFrame
             }
     };
 
+    #pragma endregion CustomFrame
+
+#pragma region loadCustomFrames
+
 	template<typename RandomIt, typename PointT>
-	std::vector<boost::shared_ptr<CustomFrame<PointT>>> loadCustomFramesPart(int division_num, RandomIt beg, RandomIt end)
+	std::vector<boost::shared_ptr<CustomFrame<PointT>>> loadCustomFramesPart(int division_num, bool skip_entire_cloud, RandomIt beg, RandomIt end)
 	{
 		auto len = end - beg;
 
@@ -274,15 +304,15 @@ namespace myFrame
 			{
                 boost::shared_ptr<CustomFrame<PointT>> customFrame(new CustomFrame<PointT>);
                 
-                customFrame->load((*it));
+                customFrame->load((*it), skip_entire_cloud);
 
                 customFrames.push_back(customFrame);
 			}
 			return customFrames;
 		}
 		auto mid = beg + len/2;
-		auto handle = std::async(std::launch::async, loadCustomFramesPart<RandomIt, PointT>, division_num, beg, mid);
-		auto out = loadCustomFramesPart<RandomIt, PointT>(division_num, mid, end);
+		auto handle = std::async(std::launch::async, loadCustomFramesPart<RandomIt, PointT>, division_num, skip_entire_cloud, beg, mid);
+		auto out = loadCustomFramesPart<RandomIt, PointT>(division_num, skip_entire_cloud, mid, end);
 		auto out1 = handle.get();
 
 		std::copy(out1.begin(), out1.end(), std::back_inserter(out));
@@ -291,7 +321,7 @@ namespace myFrame
 	}
 
     template<typename PointT>
-	bool loadCustomFrames(std::string output_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames)
+	bool loadCustomFrames(std::string output_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, bool skip_entire_cloud = true)
 	{
         std::vector<std::string> files;
         for (boost::filesystem::directory_entry & file : boost::filesystem::directory_iterator(output_dir))
@@ -305,11 +335,15 @@ namespace myFrame
         
         int division_num = myFunction::getDivNum<size_t, size_t>(files.size());
 
-        customFrames = loadCustomFramesPart<decltype(files.begin()), PointT>(division_num, files.begin(), files.end());
+        customFrames = loadCustomFramesPart<decltype(files.begin()), PointT>(division_num, skip_entire_cloud, files.begin(), files.end());
     }
     
+#pragma endregion loadCustomFrames
+
+#pragma region saveCustomFrames
+
 	template<typename RandomIt>
-	int saveCustomFramesPart(int division_num, std::string output_dir, RandomIt beg, RandomIt end)
+	int saveCustomFramesPart(const int &division_num, const std::string &output_dir, const bool &compress, const RandomIt &beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -318,28 +352,32 @@ namespace myFrame
             int out;
 			for(auto it = beg; it != end; ++it)
 			{
-                (*it)->save(output_dir);
+                (*it)->save(output_dir, compress);
 			}
 			return out;
 		}
 		auto mid = beg + len/2;
-		auto handle = std::async(std::launch::async, saveCustomFramesPart<RandomIt>, division_num, output_dir, beg, mid);
-		auto out = saveCustomFramesPart<RandomIt>(division_num, output_dir, mid, end);
+		auto handle = std::async(std::launch::async, saveCustomFramesPart<RandomIt>, division_num, output_dir, compress, beg, mid);
+		auto out = saveCustomFramesPart<RandomIt>(division_num, output_dir, compress, mid, end);
 		auto out1 = handle.get();
 
 		return out + out1;
 	}
 
     template<typename PointT>
-	bool saveCustomFrames(std::string output_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames)
+	bool saveCustomFrames(std::string &output_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, bool compress = false)
 	{
         int division_num = myFunction::getDivNum<size_t, size_t>(customFrames.size());
 
-        int count = saveCustomFramesPart(division_num, output_dir, customFrames.begin(), customFrames.end());
+        int count = saveCustomFramesPart(division_num, output_dir, compress, customFrames.begin(), customFrames.end());
     
         return (count == customFrames.size())? true : false;
     }
     
+#pragma endregion saveCustomFrames
+
+#pragma region getCustomFrames
+
 	template<typename PointT>
 	bool getCustomFrames(std::string &bagFile, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, std::string &bridge_file, std::string &tmp_dir, int number = std::numeric_limits<int>::max())
 	{
@@ -387,6 +425,42 @@ namespace myFrame
 			frameNumber = frameset[0].get_frame_number();
 		}
 	}
+
+#pragma endregion getCustomFrames
+
+#pragma region backgroundSegmentationCustomFrames
+
+	template<typename RandomIt, typename PointT>
+	int backgroundSegmentationCustomFramesPart(int division_num, myClass::backgroundSegmentation<PointT> background_segmentation, RandomIt beg, RandomIt end)
+	{
+		auto len = end - beg;
+
+		if(len < division_num)
+		{
+            int out;
+			for(auto it = beg; it != end; ++it)
+			{
+                (*it)->backgroundSegmentation(background_segmentation);
+			}
+			return out;
+		}
+		auto mid = beg + len/2;
+		auto handle = std::async(std::launch::async, backgroundSegmentationCustomFramesPart<RandomIt, PointT>, division_num, background_segmentation, beg, mid);
+		auto out = backgroundSegmentationCustomFramesPart<RandomIt, PointT>(division_num, background_segmentation, mid, end);
+		auto out1 = handle.get();
+
+		return out + out1;
+	}
+
+    template<typename PointT>
+	bool backgroundSegmentationCustomFrames(myClass::backgroundSegmentation<PointT> background_segmentation, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames)
+	{
+        int division_num = myFunction::getDivNum<size_t, size_t>(customFrames.size());
+
+        int count = backgroundSegmentationCustomFramesPart<decltype(customFrames.begin()), PointT>(division_num, background_segmentation, customFrames.begin(), customFrames.end());
+    }
+
+#pragma endregion backgroundSegmentationCustomFrames
 
 }
 #endif
