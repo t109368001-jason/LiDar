@@ -66,7 +66,7 @@ void pcl_viewer()
     }
 
     pcl::PointCloud<PointT>::Ptr backgroundCloud(new pcl::PointCloud<PointT>);
-    ////////////////////////////////////////////////////////////////
+    /*///////////////////////////////////////////////////////////////
     std::cerr << "Load bag file...", tt.tic();
 
     myFrame::getCustomFrames(bagFile, customFrames, bridgeFile, tmp_dir);
@@ -77,32 +77,31 @@ void pcl_viewer()
     std::cerr << '\n';
     ////////////////////////////////////////////////////////////////*/
 
-    ////////////////////////////////////////////////////////////////
+    /*///////////////////////////////////////////////////////////////
     std::cerr << "Custom frames object segmentation...", tt.tic();
     double w = 1280.0;
     double h = 720.0;
     object_segmentation.setCameraParameter("UL", w, h, 89.7974 * M_PI / 180.0, 69.4 * M_PI / 180.0);
     
-    for(int i = 0; i < customFrames.size(); i++)
-    {
-        customFrames[i]->objectSegmentation(tmp_dir, object_segmentation);
-    }
+    myFrame::objectSegmentationCustomFrames(tmp_dir, object_segmentation, customFrames);
+
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     std::cerr << "Total frame : " << customFrames.size();
     std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     std::cerr << '\n';
     ////////////////////////////////////////////////////////////////*/
 
-    ////////////////////////////////////////////////////////////////
+    /*///////////////////////////////////////////////////////////////
     std::cerr << "save custom frames...", tt.tic();
     myFrame::saveCustomFrames(output_dir, customFrames);
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     std::cerr << "Total frame : " << customFrames.size();
     std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     std::cerr << '\n';
+    return;
     ////////////////////////////////////////////////////////////////*/
     
-    /*///////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////
     std::cerr << "load custom frames...", tt.tic();
     myFrame::loadCustomFrames(output_dir, customFrames, true);
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
@@ -120,10 +119,10 @@ void pcl_viewer()
     ////////////////////////////////////////////////////////////////*/
     
     ////////////////////////////////////////////////////////////////
-    std::cerr << "Point cloud background segmentation...", tt.tic();
     double resolution;
     cout << "Please input background segmentation resolution: "; 
     cin >> resolution;
+    std::cerr << "Point cloud background segmentation...", tt.tic();
     background_segmentation.setBackground(backgroundCloud, resolution);
 
     myFrame::backgroundSegmentationCustomFrames(background_segmentation, customFrames);
@@ -132,7 +131,6 @@ void pcl_viewer()
     std::cerr << "Total frame : " << customFrames.size();
     std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     ////////////////////////////////////////////////////////////////*/
-    
 
     viewer.reset(new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setSize(1280, 720);
@@ -145,9 +143,10 @@ void pcl_viewer()
     viewer->spinOnce();
     viewer->getCameras(cameras);
 
-    
+    int play_count = 0;
 
-    viewer << *customFrames[0];
+    std::sort(customFrames.begin(), customFrames.end(), [](const boost::shared_ptr<myFrame::CustomFrame<PointT>> &a, const boost::shared_ptr<myFrame::CustomFrame<PointT>> &b) { return a->file_name < b->file_name; });
+    viewer << *customFrames[play_count];
 
     //pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp = object_segmentation.division(cameras[0], backgroundCloud, false);
     //pcl::PointCloud<pcl::PointXYZRGB>::Ptr backgroundCloud_view = myFunction::fillColor<PointT>(backgroundCloud, 255, 0, 0);
@@ -158,15 +157,17 @@ void pcl_viewer()
     myFunction::showCloud(viewer, backgroundCloud_view, "backgroundCloud_view");
     //myFunction::showCloud(viewer, Cloud_view1, "Cloud_view1");
 
-    viewer->spin();
+    viewer->spinOnce();
 
     while( !viewer->wasStopped())
     {
         viewer->spinOnce();
         viewer->getCameras(cameras);
-
+        viewer -= *customFrames[play_count];
+        if(++play_count == customFrames.size()) play_count = 0;
+        viewer << *customFrames[play_count];
         //myFunction::printCamera(cameras[0]);
-        boost::this_thread::sleep(boost::posix_time::milliseconds(50));
+        //boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
     }
     /*///////////////////////////////////////////////////////////////
     auto depth_stream = selection.get_stream(RS2_STREAM_DEPTH)

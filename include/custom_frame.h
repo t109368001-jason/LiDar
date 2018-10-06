@@ -29,7 +29,7 @@ namespace myFrame
 
             bool entire_cloud_isSet;
 
-            bool set(rs2::frameset &frameset, std::chrono::milliseconds &startTime, std::string &bridge_file, std::string &tmp_dir)
+            bool set(rs2::frameset &frameset, const std::chrono::milliseconds &startTime, const std::string &bridge_file, const std::string &tmp_dir)
             {
                 auto frameDepth = frameset.get_depth_frame();
                 auto frameColor = frameset.get_color_frame();
@@ -62,8 +62,6 @@ namespace myFrame
                     }
                     stbi_write_png( png_file.c_str(), frameColor.get_width(), frameColor.get_height(), frameColor.get_bytes_per_pixel(), frameColor.get_data(), frameColor.get_stride_in_bytes());
                     
-                    boost::this_thread::sleep(boost::posix_time::milliseconds(10));
-
                     this->detect(png_file, bridge_file);
 
                     rs2::points points;
@@ -120,7 +118,7 @@ namespace myFrame
                 std::vector<boost::shared_ptr<YoloObject<PointT>>> yolo_objects;
             }
 
-            bool load(std::string txt_file, bool skip_entire_cloud)
+            bool load(const std::string &txt_file, const bool &skip_entire_cloud)
             {
                 std::ifstream ifs(txt_file);
 
@@ -167,14 +165,19 @@ namespace myFrame
                 }
             }
 
-            bool objectSegmentation(std::string tmp_dir, myClass::objectSegmentation<PointT> object_segmentation)
+            bool objectSegmentation(const std::string &tmp_dir,  myClass::objectSegmentation<PointT> object_segmentation)
             {
                 std::string txt_file = tmp_dir + this->file_name + ".txt";
-
-                if(!myFunction::fileExists(txt_file))
+                int break_count = 0;
+                while(!myFunction::fileExists(txt_file))
                 {
-                    std::cerr << txt_file << " not found\n";
-                    return false;
+                    if(break_count > 100)
+                    {
+                        std::cerr << txt_file << " not found\n";
+                        return false;
+                    }
+                    break_count++;
+                    boost::this_thread::sleep(boost::posix_time::milliseconds(10));
                 }
                 std::ifstream ifs;
                 ifs.open(txt_file);
@@ -205,7 +208,7 @@ namespace myFrame
                     uint8_t g;
                     uint8_t b;
 
-                    myFunction::createColor(i, r, g, b);
+                    myFunction::name_to_color(temp->name, r, g, b);
 
                     temp->cloud = myFunction::fillColor<PointT>(temp->cloud, r, g, b);
                     
@@ -214,7 +217,7 @@ namespace myFrame
                 }
             }
 
-            bool backgroundSegmentation(myClass::backgroundSegmentation<PointT> background_segmentation)
+            bool backgroundSegmentation(myClass::backgroundSegmentation<PointT> &background_segmentation)
             {
                 for(auto it = this->yolo_objects.begin(); it != this->yolo_objects.end(); ++it)
                 {
@@ -239,7 +242,16 @@ namespace myFrame
             {
                 for(int i = 0; i < obj.yolo_objects.size(); i++)
                 {
-                    myFunction::showCloud(viewer, obj.yolo_objects[i]->cloud, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name, obj.yolo_objects[i]->name, true);
+                    myFunction::showCloudWithText(viewer, obj.yolo_objects[i]->cloud, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name, obj.yolo_objects[i]->name);
+                }
+                return viewer;
+            }
+
+            friend boost::shared_ptr<pcl::visualization::PCLVisualizer> operator-=(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, CustomFrame &obj)
+            {
+                for(int i = 0; i < obj.yolo_objects.size(); i++)
+                {
+                    myFunction::removeCloudWithText(viewer, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name);
                 }
                 return viewer;
             }
@@ -247,7 +259,7 @@ namespace myFrame
         private:
             std::unordered_map<int, std::unordered_set<unsigned long long>> _framesMap;
 
-            bool detect(std::string &png_file, std::string &bridge_file)
+            bool detect(const std::string &png_file, const std::string &bridge_file)
             {
                 while(1)
                 {
@@ -293,7 +305,7 @@ namespace myFrame
 #pragma region loadCustomFrames
 
 	template<typename RandomIt, typename PointT>
-	std::vector<boost::shared_ptr<CustomFrame<PointT>>> loadCustomFramesPart(int division_num, bool skip_entire_cloud, RandomIt beg, RandomIt end)
+	std::vector<boost::shared_ptr<CustomFrame<PointT>>> loadCustomFramesPart(const int &division_num, const bool &skip_entire_cloud, const  RandomIt &beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -312,8 +324,8 @@ namespace myFrame
 		}
 		auto mid = beg + len/2;
 		auto handle = std::async(std::launch::async, loadCustomFramesPart<RandomIt, PointT>, division_num, skip_entire_cloud, beg, mid);
-		auto out = loadCustomFramesPart<RandomIt, PointT>(division_num, skip_entire_cloud, mid, end);
-		auto out1 = handle.get();
+		auto out1 = loadCustomFramesPart<RandomIt, PointT>(division_num, skip_entire_cloud, mid, end);
+		auto out = handle.get();
 
 		std::copy(out1.begin(), out1.end(), std::back_inserter(out));
 
@@ -321,7 +333,7 @@ namespace myFrame
 	}
 
     template<typename PointT>
-	bool loadCustomFrames(std::string output_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, bool skip_entire_cloud = true)
+	bool loadCustomFrames(const std::string &output_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, bool skip_entire_cloud = true)
 	{
         std::vector<std::string> files;
         for (boost::filesystem::directory_entry & file : boost::filesystem::directory_iterator(output_dir))
@@ -331,7 +343,7 @@ namespace myFrame
                 files.push_back(file.path().string());
             }
         }
-        std::sort(files.begin(), files.end());
+        //std::sort(files.begin(), files.end());
         
         int division_num = myFunction::getDivNum<size_t, size_t>(files.size());
 
@@ -431,7 +443,7 @@ namespace myFrame
 #pragma region backgroundSegmentationCustomFrames
 
 	template<typename RandomIt, typename PointT>
-	int backgroundSegmentationCustomFramesPart(int division_num, myClass::backgroundSegmentation<PointT> background_segmentation, RandomIt beg, RandomIt end)
+	int backgroundSegmentationCustomFramesPart(const int &division_num, myClass::backgroundSegmentation<PointT> background_segmentation, const RandomIt &beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -458,6 +470,40 @@ namespace myFrame
         int division_num = myFunction::getDivNum<size_t, size_t>(customFrames.size());
 
         int count = backgroundSegmentationCustomFramesPart<decltype(customFrames.begin()), PointT>(division_num, background_segmentation, customFrames.begin(), customFrames.end());
+    }
+
+#pragma endregion backgroundSegmentationCustomFrames
+
+#pragma region backgroundSegmentationCustomFrames
+
+	template<typename RandomIt, typename PointT>
+	int objectSegmentationCustomFramesPart(const int &division_num, const std::string &tmp_dir, myClass::objectSegmentation<PointT> object_segmentation, const RandomIt &beg, const RandomIt &end)
+	{
+		auto len = end - beg;
+
+		if(len < division_num)
+		{
+            int out;
+			for(auto it = beg; it != end; ++it)
+			{
+                (*it)->objectSegmentation(tmp_dir, object_segmentation);
+			}
+			return out;
+		}
+		auto mid = beg + len/2;
+		auto handle = std::async(std::launch::async, objectSegmentationCustomFramesPart<RandomIt, PointT>, division_num, tmp_dir, object_segmentation, beg, mid);
+		auto out = objectSegmentationCustomFramesPart<RandomIt, PointT>(division_num, tmp_dir, object_segmentation, mid, end);
+		auto out1 = handle.get();
+
+		return out + out1;
+	}
+
+    template<typename PointT>
+	bool objectSegmentationCustomFrames(const std::string &tmp_dir, myClass::objectSegmentation<PointT> object_segmentation, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames)
+	{
+        int division_num = myFunction::getDivNum<size_t, size_t>(customFrames.size());
+
+        int count = objectSegmentationCustomFramesPart<decltype(customFrames.begin()), PointT>(division_num, tmp_dir, object_segmentation, customFrames.begin(), customFrames.end());
     }
 
 #pragma endregion backgroundSegmentationCustomFrames

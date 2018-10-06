@@ -149,7 +149,7 @@ namespace myClass
 				std::cerr << "segmentation_Down_Bound: " << this->segmentation_Down_Bound << std::endl;
 			}
 
-			typename pcl::PointCloud<PointT>::Ptr division(const typename pcl::PointCloud<PointT>::Ptr &input, const bool &keep_Inside = true)
+			typename pcl::PointCloud<PointT>::Ptr division(const typename pcl::PointCloud<PointT>::Ptr &input, const bool keep_Inside = true)
 			{
 				if(!BoundIsSet)
 				{
@@ -169,7 +169,43 @@ namespace myClass
 				return cloud;
 			}
 
-			typename pcl::PointCloud<PointT>::Ptr division(const pcl::visualization::Camera camera, const typename pcl::PointCloud<PointT>::Ptr &input, const bool &keep_Inside = true)
+			typename pcl::PointCloud<PointT>::Ptr division_one_thread(const typename pcl::PointCloud<PointT>::Ptr &input, const bool keep_Inside = true)
+			{
+				if(!BoundIsSet)
+				{
+					std::cerr << "\nBound parameter is not set\n";
+					return input;
+				}
+
+				typename pcl::PointCloud<PointT>::Ptr cloud(new typename pcl::PointCloud<PointT>);
+				this->keep_Inside = keep_Inside;
+			
+				if(this->keep_Inside)
+				{
+					for(auto it = input->points.begin(); it != input->points.end(); ++it)
+					{
+						if(this->pointIsInside((*it)))
+						{
+							cloud->points.push_back(*it);
+						}
+					}
+				}
+				else
+				{
+					for(auto it = input->points.begin(); it != input->points.end(); ++it)
+					{
+						if(!this->pointIsInside((*it)))
+						{
+							cloud->points.push_back(*it);
+						}
+					}
+				}
+				cloud->width = (int) cloud->points.size();
+				cloud->height = 1;
+				return cloud;
+			}
+
+			typename pcl::PointCloud<PointT>::Ptr division(const pcl::visualization::Camera &camera, const typename pcl::PointCloud<PointT>::Ptr &input, const bool keep_Inside = true)
 			{
 				if(!BoundIsSet)
 				{
@@ -213,11 +249,24 @@ namespace myClass
 				if (len < division_num)
 				{
 					std::vector<PointT, Eigen::aligned_allocator<PointT>> out;
-					for(auto it = beg; it != end; ++it)
+					if(this->keep_Inside)
 					{
-						if((!this->keep_Inside) ^ this->pointIsInside((*it)))
+						for(auto it = beg; it != end; ++it)
 						{
-							out.push_back(*it);
+							if(this->pointIsInside((*it)))
+							{
+								out.push_back(*it);
+							}
+						}
+					}
+					else
+					{
+						for(auto it = beg; it != end; ++it)
+						{
+							if(!this->pointIsInside((*it)))
+							{
+								out.push_back(*it);
+							}
 						}
 					}
 					return out;

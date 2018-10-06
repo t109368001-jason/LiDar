@@ -20,7 +20,7 @@ namespace myFunction
 
 #pragma region basic
 
-	double distance(double ax, double ay, double az, double bx = 0, double by = 0, double bz = 0)
+	double distance(const double &ax, const double &ay, const double &az, const double bx = 0, const double by = 0, const double bz = 0)
 	{
 		return std::sqrt((ax-bx)*(ax-bx)+(ay-by)*(ay-by)+(az-bz)*(az-bz));
 	}
@@ -41,7 +41,7 @@ namespace myFunction
 		return std::sqrt(x*x+y*y+z*z);
 	}
 
-	void XYZ_to_Sphere(const double x, const double y, const double z, double &radius, double &phi, double &theta)
+	void XYZ_to_Sphere(const double &x, const double &y, const double &z, double &radius, double &phi, double &theta)
 	{
 		radius = norm(x,y,z);
 		theta = acos(z / radius);
@@ -60,7 +60,7 @@ namespace myFunction
 		}
 	}
 
-	double getPhi(const double x, const double y)
+	double getPhi(const double &x, const double &y)
 	{
 		double phi = atan(y / x);
 		
@@ -78,7 +78,7 @@ namespace myFunction
 		return phi;
 	}
 	
-	double getTheta(const double x, const double y, const double z)
+	double getTheta(const double &x, const double &y, const double &z)
 	{
 		double radius = norm(x,y,z);
 		double theta = acos(z / radius);
@@ -86,7 +86,7 @@ namespace myFunction
 		return theta;
 	}
 
-	double rotateX(double &x, double &y, double &z, const double angle)
+	double rotateX(double &x, double &y, double &z, const double &angle)
 	{
 		double x_ = x;
 		double y_ = y;
@@ -109,7 +109,7 @@ namespace myFunction
 		point.z = y_*(-std::sin(angle)) + z_*std::cos(angle);
 	}
 
-	double rotateY(double &x, double &y, double &z, const double angle)
+	double rotateY(double &x, double &y, double &z, const double &angle)
 	{
 		double x_ = x;
 		double y_ = y;
@@ -121,7 +121,7 @@ namespace myFunction
 	}
 
 	template<typename PointT>
-	double rotateY(PointT &point, const double angle)
+	double rotateY(PointT &point, const double &angle)
 	{
 		double x_ = point.x;
 		double y_ = point.y;
@@ -156,7 +156,7 @@ namespace myFunction
 	}
 
 	template<typename Type>
-	std::string commaFix(Type input)
+	std::string commaFix(const Type &input)
 	{
         std::stringstream ss;
         ss.imbue(std::locale(""));
@@ -165,7 +165,7 @@ namespace myFunction
 		return ss.str();
 	}
 
-	bool fileExists(std::string &filename)
+	bool fileExists(const std::string &filename)
 	{
 		struct stat buffer;
 		return stat(filename.c_str(), &buffer) == 0;
@@ -183,7 +183,7 @@ namespace myFunction
 	
 #pragma region value_to_RGB
 
-	void value_to_RGB(const double value, const double min, const double max, uint8_t &r, uint8_t &g, uint8_t &b)
+	void value_to_RGB(const double &value, const double &min, const double &max, uint8_t &r, uint8_t &g, uint8_t &b)
 	{
 		double temp = (value - min)/(max-min);
 		if(temp > 1.0) temp = 1.0;
@@ -235,7 +235,7 @@ namespace myFunction
 
 	//取得點雲中最近的兩個點距離
 	template<typename RandomIt, typename PointT>
-	double getNearestPointsDistancePart(int division_num, typename pcl::search::KdTree<PointT>::Ptr tree, RandomIt beg, RandomIt end)
+	double getNearestPointsDistancePart(const int &division_num, typename pcl::search::KdTree<PointT>::Ptr tree, const RandomIt &beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -265,7 +265,7 @@ namespace myFunction
 
 	//取得點雲中最近的兩個點距離取得點雲中最近的兩個點距離
 	template<typename PointT>
-	double getNearestPointsDistance(typename pcl::PointCloud<PointT>::Ptr cloud)
+	double getNearestPointsDistance(const typename pcl::PointCloud<PointT>::Ptr &cloud)
 	{
 		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
 		typename pcl::search::KdTree<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
@@ -280,7 +280,7 @@ namespace myFunction
 #pragma region getFarthestPointsDistance
 	//取得點雲中最遠的兩個點距離
 	template<typename RandomIt>
-	double getFarthestPointsDistancePart(int division_num, RandomIt beg1, RandomIt end1, RandomIt beg2, RandomIt end2)
+	double getFarthestPointsDistancePart(const int &division_num, const RandomIt &beg1, const RandomIt &end1, const RandomIt &beg2, const RandomIt &end2)
 	{
 		auto len1 = end1 - beg1;
 
@@ -310,7 +310,7 @@ namespace myFunction
 	
 	//取得點雲中最遠的兩個點距離
 	template<typename PointT>
-	double getFarthestPointsDistance(typename pcl::PointCloud<PointT>::Ptr cloud)
+	double getFarthestPointsDistance(const typename pcl::PointCloud<PointT>::Ptr &cloud)
 	{
 		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
 		
@@ -323,7 +323,7 @@ namespace myFunction
 
 	//取得點雲中距離point最遠的點
 	template<typename RandomIt, typename PointT>
-	PointT getNearOrFarthestPointPart(int division_num, bool Nearest, PointT point, RandomIt beg, RandomIt end)
+	PointT getNearOrFarthestPointPart(const int &division_num, const bool &Nearest, const PointT &point, const RandomIt &beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -353,7 +353,7 @@ namespace myFunction
 	}
 
 	template<typename PointT>
-	PointT getNearOrFarthestPoint(typename pcl::PointCloud<PointT>::Ptr cloud, bool Nearest = true, PointT point = PointT(0,0,0))
+	PointT getNearOrFarthestPoint(const typename pcl::PointCloud<PointT>::Ptr &cloud, const bool Nearest = true, const PointT point = PointT(0,0,0))
 	{
 		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
 		
@@ -364,7 +364,7 @@ namespace myFunction
 
 #pragma region pcd_to_poissonMesh
 
-	void pcd_to_poissonMesh(std::string filename, pcl::PolygonMesh &poission)
+	void pcd_to_poissonMesh(const std::string &filename, pcl::PolygonMesh &poission)
 	{
 		string ply_filename = filename.substr(0,filename.find_last_of('.'))+"_poission.ply";
 
@@ -402,7 +402,7 @@ namespace myFunction
 		}
 	}
 
-	pcl::PolygonMesh pcd_to_poissonMesh(std::string filename)
+	pcl::PolygonMesh pcd_to_poissonMesh(const std::string &filename)
 	{
 		string ply_filename = filename.substr(0,filename.find_last_of('.'))+"_poission.ply";
 		pcl::PolygonMesh poission;
@@ -446,7 +446,7 @@ namespace myFunction
 #pragma region loadMultiPCD
 
 	template<typename RandomIt1, typename RandomIt2, typename PointT>
-	int loadMultiPCDPart(int division_num, RandomIt1 beg1, RandomIt1 end1, RandomIt2 beg2, RandomIt2 end2)
+	int loadMultiPCDPart(const int &division_num, const RandomIt1 &beg1, const RandomIt1 &end1, const RandomIt2 &beg2, const RandomIt2 &end2)
 	{
 		auto len1 = end1 - beg1;
 		auto len2 = end2 - beg2;
@@ -475,7 +475,7 @@ namespace myFunction
 	}
 
 	template<typename PointT>
-	int loadMultiPCD(std::string filename, std::vector<boost::shared_ptr<typename pcl::PointCloud<PointT>>> &clouds)
+	int loadMultiPCD(const std::string &filename, std::vector<boost::shared_ptr<typename pcl::PointCloud<PointT>>> &clouds)
 	{
 		std::ifstream fs;
 		std::string line;
@@ -505,7 +505,7 @@ namespace myFunction
 #pragma region XYZ_to_XYZRGB
 
 	template<typename RandomIt>
-	std::vector<pcl::PointXYZRGB, Eigen::aligned_allocator<pcl::PointXYZRGB>> XYZ_to_XYZRGBPart(int division_num, double min_Distance, double div, bool gray, RandomIt beg, RandomIt end)
+	std::vector<pcl::PointXYZRGB, Eigen::aligned_allocator<pcl::PointXYZRGB>> XYZ_to_XYZRGBPart(const int &division_num, const double &min_Distance, const double &div, const bool &gray, const RandomIt beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -551,7 +551,7 @@ namespace myFunction
 	}
 
 	template<typename PointT>
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr XYZ_to_XYZRGB(typename pcl::PointCloud<PointT>::Ptr cloud_in, bool gray = true)
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr XYZ_to_XYZRGB(const typename pcl::PointCloud<PointT>::Ptr &cloud_in, const bool gray = true)
 	{
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_out (new pcl::PointCloud<pcl::PointXYZRGB>);
 		double min_Distance = distance<PointT>(getNearOrFarthestPoint<PointT>(cloud_in));
@@ -571,7 +571,7 @@ namespace myFunction
 #pragma region fillColor
 
 	template<typename RandomIt>
-	int fillColorPart(int division_num, uint8_t r, uint8_t g, uint8_t b, RandomIt beg, RandomIt end)
+	int fillColorPart(const int &division_num, const uint8_t &r, const uint8_t &g, const uint8_t &b, const RandomIt &beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -594,7 +594,7 @@ namespace myFunction
 		return out + out1;
 	}
 
-	int fillColor(typename pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, uint8_t r, uint8_t g, uint8_t b)
+	int fillColor(const typename pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const uint8_t &r, const uint8_t &g, const uint8_t &b)
 	{
 		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
 		
@@ -602,7 +602,7 @@ namespace myFunction
 	}
 
 	template<typename PointT>
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr fillColor(typename pcl::PointCloud<PointT>::Ptr cloud, uint8_t r, uint8_t g, uint8_t b)
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr fillColor(const typename pcl::PointCloud<PointT>::Ptr &cloud, const uint8_t &r, const uint8_t &g, const uint8_t &b)
 	{
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr out(new pcl::PointCloud<pcl::PointXYZRGB>);
 		pcl::PointXYZRGB point;
@@ -629,7 +629,7 @@ namespace myFunction
 #pragma region getOrigin
 
 	template<typename RandomIt, typename PointT>
-	PointT getOriginPart(int division_num, RandomIt beg, RandomIt end)
+	PointT getOriginPart(const int &division_num, const RandomIt &beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -659,7 +659,7 @@ namespace myFunction
 		return out;
 	}
 	template<typename PointT>
-	PointT getOrigin(typename pcl::PointCloud<PointT>::Ptr cloud)
+	PointT getOrigin(const typename pcl::PointCloud<PointT>::Ptr &cloud)
 	{
 		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
 		
@@ -677,7 +677,7 @@ namespace myFunction
 #pragma region offsetToOrigin
 
 	template<typename RandomIt, typename PointT>
-	int offsetToOriginPart(int division_num, PointT point, RandomIt beg, RandomIt end)
+	int offsetToOriginPart(const int &division_num, const PointT &point, const RandomIt &beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -701,7 +701,7 @@ namespace myFunction
 		return out + out1;
 	}
 	template<typename PointT>
-	int offsetToOrigin(typename pcl::PointCloud<PointT>::Ptr &cloud)
+	int offsetToOrigin(const typename pcl::PointCloud<PointT>::Ptr &cloud)
 	{
 		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
 		
@@ -713,7 +713,7 @@ namespace myFunction
 #pragma region points_to_pcl
 
 	template<typename RandomIt, typename RandomIt2>
-	int points_to_pclPart(int division_num, RandomIt2 ptr, RandomIt beg, RandomIt end)
+	int points_to_pclPart(const int &division_num, RandomIt2 ptr, const RandomIt &beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -740,7 +740,7 @@ namespace myFunction
 	}
 
 	template<typename PointT>
-	typename pcl::PointCloud<PointT>::Ptr points_to_pcl(const rs2::points& points)
+	typename pcl::PointCloud<PointT>::Ptr points_to_pcl(const rs2::points &points)
 	{
 		int division_num = std::ceil(points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
 		
@@ -770,7 +770,7 @@ namespace myFunction
 #pragma region getChanges
 
 	template<typename PointT>
-	typename pcl::PointCloud<PointT>::Ptr getChanges(typename pcl::PointCloud<PointT>::Ptr cloud1, typename pcl::PointCloud<PointT>::Ptr cloud2, double resolution)
+	typename pcl::PointCloud<PointT>::Ptr getChanges(const typename pcl::PointCloud<PointT>::Ptr &cloud1, const typename pcl::PointCloud<PointT>::Ptr &cloud2, const double &resolution)
 	{
 		typename pcl::PointCloud<PointT>::Ptr temp(new typename pcl::PointCloud<PointT>);
 		pcl::octree::OctreePointCloudChangeDetector<PointT> octree (resolution);
@@ -798,7 +798,7 @@ namespace myFunction
 
 #pragma region printCamera
 
-	void printCamera(pcl::visualization::Camera camera)
+	void printCamera(const pcl::visualization::Camera &camera)
 	{
 		std::cout << "Cam: " << endl;
         std::cout << " - pos: (" << camera.pos[0] << ", "    << camera.pos[1] << ", "    << camera.pos[2] << ")" << endl;
@@ -810,26 +810,26 @@ namespace myFunction
 
 #pragma region showCloud
 
-	void showCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::string name, std::string text = "", bool text3D = false)
+	void showCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name)
 	{
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 		viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
 		viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
-		if(text3D)
-		{
-			 viewer->addText3D(text, cloud->points[0], 0.01, 1.0, 1.0, 1.0, name + "_text");
-		}
-		else
-		{
-			viewer->removeText3D(name + "_text");
-		}
+	}
+
+	void showCloudWithText(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const std::string text = "")
+	{
+		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
+		viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
+		viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
+		viewer->addText3D(text, cloud->points[0], 0.01, 1.0, 1.0, 1.0, name + "_text");
 	}
 
 #pragma endregion showCloud
 
 #pragma region updateCloud
 
-	void updateCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, std::string name, std::string text = "", bool text3D = false)
+	void updateCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name)
 	{
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 
@@ -838,21 +838,41 @@ namespace myFunction
 			viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
 			viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
 		}
-		if(text3D)
+	}
+
+	void updateCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const std::string text = "")
+	{
+		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
+
+		if( !viewer->updatePointCloud<pcl::PointXYZRGB> (cloud, rgb, name))
 		{
-			 viewer->addText3D(text, cloud->points[0], 1.0, 1.0, 1.0, 1.0, name + "_text");
+			viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
+			viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
 		}
-		else
-		{
-			viewer->removeText3D(name + "_text");
-		}
+		viewer->removeText3D(name + "_text");
+		viewer->addText3D(text, cloud->points[0], 1.0, 1.0, 1.0, 1.0, name + "_text");
 	}
 
 #pragma endregion updateCloud
 
+#pragma region removeCloud
+
+	void removeCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const std::string name)
+	{
+		viewer->removePointCloud(name);
+	}
+
+	void removeCloudWithText(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const std::string name)
+	{
+		viewer->removePointCloud(name);
+		viewer->removeText3D(name + "_text");
+	}
+
+#pragma endregion showCloud
+
 #pragma region millisecondToString
 
-	std::string millisecondToString(std::chrono::milliseconds &duration, bool isFileName = true)
+	std::string millisecondToString(const std::chrono::milliseconds &duration, const bool isFileName = true)
 	{
 		std::ostringstream stream;
 		std::chrono::time_point<std::chrono::system_clock> tp = std::chrono::time_point<std::chrono::system_clock>(duration);
@@ -884,7 +904,7 @@ namespace myFunction
 #pragma region getSimilarity
 
 	template<typename PointT>
-	double getSimilarity(typename pcl::PointCloud<PointT>::Ptr cloud1, typename pcl::PointCloud<PointT>::Ptr cloud2, double resolution)
+	double getSimilarity(const typename pcl::PointCloud<PointT>::Ptr &cloud1, const typename pcl::PointCloud<PointT>::Ptr &cloud2, const double &resolution)
 	{
         pcl::octree::OctreePointCloudChangeDetector<PointT> octree (resolution);
         std::vector<int> newPointIdxVector;
@@ -903,7 +923,7 @@ namespace myFunction
 
 #pragma region bagFileNameToMilliseconds
 
-	std::chrono::milliseconds bagFileNameToMilliseconds(std::string &bagFileName)
+	std::chrono::milliseconds bagFileNameToMilliseconds(const std::string &bagFileName)
 	{
 		if(fileExists(bagFileName))
 		{
@@ -927,13 +947,14 @@ namespace myFunction
 		result.y = v.y*t;
 		result.z = v.z*t;
 	}
+
 	template<typename RandomIt1, typename RandomIt2> 
-	int getDivNum(RandomIt1 total, RandomIt2 part = (RandomIt2)(std::thread::hardware_concurrency()+1))
+	int getDivNum(const RandomIt1 &total, const RandomIt2 part = (RandomIt2)(std::thread::hardware_concurrency()+1))
 	{
 		return std::ceil((double)(total)/(double)(part));
 	}		
 
-	void createColor(int number, uint8_t &r, uint8_t &g, uint8_t &b)
+	void createColor(const int &number, uint8_t &r, uint8_t &g, uint8_t &b)
 	{
 		switch(number)
 		{
@@ -990,7 +1011,7 @@ namespace myFunction
 		}
 	}
 
-	void name_to_color(std::string name, uint8_t &r, uint8_t &g, uint8_t &b)
+	void name_to_color(const std::string &name, uint8_t &r, uint8_t &g, uint8_t &b)
 	{
 		if(name == "car")
 		{
