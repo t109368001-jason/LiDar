@@ -48,17 +48,17 @@ namespace myFrame
                     
                     std::string cwd = std::string(getcwd(NULL, 0)) + '/';
 
-                    std::string output_dir = cwd + tmp_dir;
+                    std::string abs_tmp_dir = cwd + tmp_dir;
                     
                     this->file_name = myFunction::millisecondToString(this->time_stamp);
                     
-                    std::string png_file = output_dir + this->file_name + ".png";
+                    std::string png_file = abs_tmp_dir + this->file_name + ".png";
                     while(myFunction::fileExists(png_file))
                     {
                         this->time_stamp += std::chrono::milliseconds(33);
                         this->file_name = myFunction::millisecondToString(this->time_stamp);
                     
-                        png_file = output_dir + this->file_name + ".png";
+                        png_file = abs_tmp_dir + this->file_name + ".png";
                     }
                     stbi_write_png( png_file.c_str(), frameColor.get_width(), frameColor.get_height(), frameColor.get_bytes_per_pixel(), frameColor.get_data(), frameColor.get_stride_in_bytes());
                     
@@ -73,20 +73,19 @@ namespace myFrame
                 return true;
             }
             
-            bool save(const std::string &output_dir, const bool &compress)
+            bool save(const std::string &data_dir, const bool &compress)
             {
-                std::string file_name = output_dir + this->file_name;
+                std::string file_name = data_dir + this->file_name;
                 std::string txt_file = file_name + ".txt";
                 std::string pcd_file = file_name + ".pcd";
 
                 std::ofstream ofs(txt_file);
                 ofs << "time_stamp=" << this->time_stamp.count() << std::endl;
-                ofs << "objects=" << this->yolo_objects.size() << std::endl;
                 if(compress)
                 {
-                    ofs << "entire_cloud=" << pcd_file << std::endl;
                     if(entire_cloud_isSet)
                     {
+                        ofs << "entire_cloud=" << pcd_file << std::endl;
                         pcl::io::savePCDFileBinaryCompressed(pcd_file, *(this->entire_cloud));
                     }
                     for(int i = 0; i < this->yolo_objects.size(); i++)
@@ -114,8 +113,6 @@ namespace myFrame
                         pcl::io::savePCDFileBinary(tmp.str(), *(this->yolo_objects[i]->cloud));
                     }
                 }
-
-                std::vector<boost::shared_ptr<YoloObject<PointT>>> yolo_objects;
             }
 
             bool load(const std::string &txt_file, const bool &skip_entire_cloud)
@@ -146,10 +143,6 @@ namespace myFrame
                             this->entire_cloud = cloud;
                         }
                         entire_cloud_isSet = !skip_entire_cloud;
-                    }
-                    else if(strs[0] == "objects")
-                    {
-                        //this->yolo_objects.resize(std::stoi(strs[1]));
                     }
                     else
                     {
@@ -193,10 +186,12 @@ namespace myFrame
                     lines.push_back(line);
                 }
                 if(lines.size() == 0) return false;
-                for(int i=0; i < lines.size(); i++)
+                for(auto it = lines.begin(); it != lines.end(); ++it)
+                //for(int i=0; i < lines.size(); i++)
                 {
                     vector<string> strs;
-                    boost::split(strs,lines[i],boost::is_any_of(" "));
+                    boost::split(strs, (*it), boost::is_any_of(" "));
+                    //boost::split(strs,lines[i],boost::is_any_of(" "));
 
                     boost::shared_ptr<YoloObject<PointT>> temp(new YoloObject<PointT>);
                     temp->name = strs[0];
@@ -333,10 +328,10 @@ namespace myFrame
 	}
 
     template<typename PointT>
-	bool loadCustomFrames(const std::string &output_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, bool skip_entire_cloud = true)
+	bool loadCustomFrames(const std::string &data_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, bool skip_entire_cloud = true)
 	{
         std::vector<std::string> files;
-        for (boost::filesystem::directory_entry & file : boost::filesystem::directory_iterator(output_dir))
+        for (boost::filesystem::directory_entry & file : boost::filesystem::directory_iterator(data_dir))
         {
             if(file.path().extension().string() == ".txt")
             {
@@ -355,7 +350,7 @@ namespace myFrame
 #pragma region saveCustomFrames
 
 	template<typename RandomIt>
-	int saveCustomFramesPart(const int &division_num, const std::string &output_dir, const bool &compress, const RandomIt &beg, const RandomIt &end)
+	int saveCustomFramesPart(const int &division_num, const std::string &data_dir, const bool &compress, const RandomIt &beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -364,24 +359,24 @@ namespace myFrame
             int out;
 			for(auto it = beg; it != end; ++it)
 			{
-                (*it)->save(output_dir, compress);
+                (*it)->save(data_dir, compress);
 			}
 			return out;
 		}
 		auto mid = beg + len/2;
-		auto handle = std::async(std::launch::async, saveCustomFramesPart<RandomIt>, division_num, output_dir, compress, beg, mid);
-		auto out = saveCustomFramesPart<RandomIt>(division_num, output_dir, compress, mid, end);
+		auto handle = std::async(std::launch::async, saveCustomFramesPart<RandomIt>, division_num, data_dir, compress, beg, mid);
+		auto out = saveCustomFramesPart<RandomIt>(division_num, data_dir, compress, mid, end);
 		auto out1 = handle.get();
 
 		return out + out1;
 	}
 
     template<typename PointT>
-	bool saveCustomFrames(std::string &output_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, bool compress = false)
+	bool saveCustomFrames(std::string &data_dir, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, const bool compress = false)
 	{
         int division_num = myFunction::getDivNum<size_t, size_t>(customFrames.size());
 
-        int count = saveCustomFramesPart(division_num, output_dir, compress, customFrames.begin(), customFrames.end());
+        int count = saveCustomFramesPart(division_num, data_dir, compress, customFrames.begin(), customFrames.end());
     
         return (count == customFrames.size())? true : false;
     }

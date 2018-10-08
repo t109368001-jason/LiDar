@@ -8,16 +8,18 @@ namespace myClass
 {
     class MicroStopwatch
     {
+        boost::posix_time::ptime tictic;
+        boost::posix_time::ptime toctoc;
+        bool stoped;
         public:
             int64_t elapsed;
             std::string name;
-            boost::posix_time::ptime tictic;
-            boost::posix_time::ptime toctoc;
             MicroStopwatch()
             {
                 elapsed = 0;
+                stoped = false;
             }
-            MicroStopwatch(std::string name)
+            MicroStopwatch(const std::string &name)
             {
                 elapsed = 0;
                 this->name = name;
@@ -29,7 +31,6 @@ namespace myClass
             int64_t toc()
             {
                 toctoc = boost::posix_time::microsec_clock::local_time ();
-                this->elapsed += (toctoc - tictic).total_microseconds();
                 return (toctoc - tictic).total_microseconds();
             }
             std::string toc_string()
@@ -56,6 +57,25 @@ namespace myClass
             void clear()
             {
                 this->elapsed = 0;
+            }
+            void start()
+            {
+                if(this->stoped) this->elapsed = 0;
+                tictic = boost::posix_time::microsec_clock::local_time ();
+            }
+            void pause()
+            {
+                toctoc = boost::posix_time::microsec_clock::local_time ();
+                this->elapsed += (toctoc - tictic).total_microseconds();
+            }
+            void stop()
+            {
+                toctoc = boost::posix_time::microsec_clock::local_time ();
+            }
+            friend std::ostream& operator<<(std::ostream &out, MicroStopwatch &obj)
+            {
+                out << obj.name << ": "<< obj.elapsed_string() << " us" <<  std::endl;
+                return out;
             }
     };
 }

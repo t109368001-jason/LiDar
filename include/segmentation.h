@@ -45,7 +45,8 @@ namespace myClass
 				
 				tree.setInputCloud(cloud);
 				tree.addPointsFromInputCloud();
-				tree.getPointIndicesFromNewVoxels(newPointIdxVector);
+
+				tree.getPointIndicesFromNewVoxels(newPointIdxVector);	//get changed points
 				
 				for(auto it = newPointIdxVector.begin(); it != newPointIdxVector.end(); ++it)
 				{
@@ -70,6 +71,7 @@ namespace myClass
 			double camera_Width;
 			double camera_Height;
 			double camera_Depth;
+			double camera_offset;
 
 			double segmentation_Up_Bound;
 			double segmentation_Down_Bound;
@@ -89,19 +91,20 @@ namespace myClass
 				this->cameraParameterIsSet = false;
 			}
 
-			objectSegmentation(const string &camera_O, const double &camera_Width, const double &camera_Height, const double &camera_FOV, double depth_Camera_FOV = 0)
+			objectSegmentation(const string &camera_O, const double &camera_Width, const double &camera_Height, const double &camera_FOV, const double &depth_Camera_FOV, const double camera_offset = 0)
 			{
 				setCameraParameter(camera_O, camera_Width, camera_Height, camera_FOV, depth_Camera_FOV);
 			}
 
-			bool setCameraParameter(const string &camera_O, const double &camera_Width, const double &camera_Height, const double &camera_FOV, double depth_Camera_FOV = 0)
+			bool setCameraParameter(const string &camera_O, const double &camera_Width, const double &camera_Height, const double &camera_FOV, const double &depth_Camera_FOV, const double camera_offset = 0)
 			{
 				this->camera_O = camera_O;
 				this->camera_Width = camera_Width;
 				this->camera_Height = camera_Height;
 				this->camera_Depth = (camera_Width/2.0) / tan(camera_FOV/2.0);
+				this->camera_offset = camera_offset;
 
-				if(depth_Camera_FOV != 0)
+				if(depth_Camera_FOV != 0)		//convert 3D FOV to 2D FOV
 				{
 					this->segmentation_Scale_Fix = (2 * this->camera_Depth * tan(depth_Camera_FOV / 2.0)) / camera_Width;
 				}
@@ -132,6 +135,7 @@ namespace myClass
 					object_Y_Temp -= this->camera_Height / 2.0;
 				}
 
+				//convert yolo XYWH to 2D XYWH
 				this->segmentation_Left_Bound = (object_X_Temp - (object_Width/2.0)) * this->segmentation_Scale_Fix;
 				this->segmentation_Right_Bound = (object_X_Temp + (object_Width/2.0)) * this->segmentation_Scale_Fix;
 				this->segmentation_Up_Bound = (object_Y_Temp - (object_Height/2.0)) * this->segmentation_Scale_Fix;
@@ -141,7 +145,7 @@ namespace myClass
 				return true;
 			}
 
-			void printAngle()
+			void printBound()
 			{
 				std::cerr << "segmentation_Left_Bound: " << this->segmentation_Left_Bound << std::endl;
 				std::cerr << "segmentation_Right_Bound: " << this->segmentation_Right_Bound << std::endl;
@@ -160,7 +164,7 @@ namespace myClass
 				typename pcl::PointCloud<PointT>::Ptr cloud(new typename pcl::PointCloud<PointT>);
 				this->keep_Inside = keep_Inside;
 				
-				int division_num = std::ceil(input->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+        		int division_num = myFunction::getDivNum<size_t, size_t>(input->points.size());
 				
 				cloud->points = divisionPart(division_num, input->points.begin(), input->points.end());
 
@@ -216,7 +220,7 @@ namespace myClass
 				typename pcl::PointCloud<PointT>::Ptr cloud(new typename pcl::PointCloud<PointT>);
 				this->keep_Inside = keep_Inside;
 
-				int division_num = std::ceil(input->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+        		int division_num = myFunction::getDivNum<size_t, size_t>(input->points.size());
 				
 				cloud->points = divisionPart(division_num, input->points.begin(), input->points.end());
 
@@ -228,8 +232,11 @@ namespace myClass
 		private:
 			bool pointIsInside(const PointT &point)
 			{
-				if(std::fabs(point.x*point.y*point.z) == 0.0){ return false; }
+				if(std::fabs(point.x*point.y*point.z) == 0.0){ return false; }	//remove all point at (0, 0, 0)
 
+				double x = point.x - this->camera_offset;
+
+				//pojection XYZ to 2D plane
 				double X_Pojection = (point.x * this->camera_Depth) / point.z;
 				double Y_Pojection = (point.y * this->camera_Depth) / point.z;
 
@@ -277,7 +284,7 @@ namespace myClass
 				auto out(divisionPart<RandomIt>(division_num, mid, end));
 				auto out1(handle.get());
 				
-				std::copy(out1.begin(),  out1.end(), std::back_inserter(out));
+				std::copy(out1.begin(),  out1.end(), std::back_inserter(out));		//append out1 to out
 
 				return out;
 			}

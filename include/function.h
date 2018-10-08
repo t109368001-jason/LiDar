@@ -30,6 +30,7 @@ namespace myFunction
 	{
 		return distance(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
 	}
+
 	template<typename PointT>
 	double norm(PointT p1)
 	{
@@ -39,25 +40,6 @@ namespace myFunction
 	double norm(double x, double y, double z)
 	{
 		return std::sqrt(x*x+y*y+z*z);
-	}
-
-	void XYZ_to_Sphere(const double &x, const double &y, const double &z, double &radius, double &phi, double &theta)
-	{
-		radius = norm(x,y,z);
-		theta = acos(z / radius);
-		phi = atan(y / x);
-		
-		if (x < 0.0)
-		{
-			if(y < 0.0)
-			{
-				phi -= M_PI;
-			}
-			else
-			{
-				phi += M_PI;
-			}
-		}
 	}
 
 	double getPhi(const double &x, const double &y)
@@ -86,7 +68,26 @@ namespace myFunction
 		return theta;
 	}
 
-	double rotateX(double &x, double &y, double &z, const double &angle)
+	void XYZ_to_Sphere(const double &x, const double &y, const double &z, double &radius, double &phi, double &theta)
+	{
+		radius = norm(x,y,z);
+		theta = acos(z / radius);
+		phi = atan(y / x);
+		
+		if (x < 0.0)
+		{
+			if(y < 0.0)
+			{
+				phi -= M_PI;
+			}
+			else
+			{
+				phi += M_PI;
+			}
+		}
+	}
+
+	double rotateX(double &x, double &y, double &z, const double &angle)	//rotate point by x axis
 	{
 		double x_ = x;
 		double y_ = y;
@@ -100,16 +101,10 @@ namespace myFunction
 	template<typename PointT>
 	double rotateX(PointT &point, const double angle)
 	{
-		double x_ = point.x;
-		double y_ = point.y;
-		double z_ = point.z;
-
-		point.x = x_;
-		point.y = y_*std::cos(angle) + z_*std::sin(angle);
-		point.z = y_*(-std::sin(angle)) + z_*std::cos(angle);
+		rotateX(point.x, point.y, point.z, angle);
 	}
 
-	double rotateY(double &x, double &y, double &z, const double &angle)
+	double rotateY(double &x, double &y, double &z, const double &angle)	//rotate point by y axis
 	{
 		double x_ = x;
 		double y_ = y;
@@ -123,16 +118,10 @@ namespace myFunction
 	template<typename PointT>
 	double rotateY(PointT &point, const double &angle)
 	{
-		double x_ = point.x;
-		double y_ = point.y;
-		double z_ = point.z;
-
-		point.x = x_*std::cos(angle) + z_*(-std::sin(angle));
-		point.y = y_;
-		point.z = x_*std::sin(angle) + z_*std::cos(angle);
+		rotateY(point.x, point.y, point.z, angle);
 	}
 
-	double rotateZ(double &x, double &y, double &z, const double &angle)
+	double rotateZ(double &x, double &y, double &z, const double &angle)	//rotate point by z axis
 	{
 		double x_ = x;
 		double y_ = y;
@@ -146,17 +135,11 @@ namespace myFunction
 	template<typename PointT>
 	double rotateZ(PointT &point, const double &angle)
 	{
-		double x_ = point.x;
-		double y_ = point.y;
-		double z_ = point.z;
-
-		point.z = z_;
-		point.x = x_*std::cos(angle) + y_*std::sin(angle);
-		point.y = x_*(-std::sin(angle)) + y_*std::cos(angle);
+		rotateZ(point.x, point.y, point.z, angle);
 	}
 
 	template<typename Type>
-	std::string commaFix(const Type &input)
+	std::string commaFix(const Type &input)		//1000000 -> 1,000,000
 	{
         std::stringstream ss;
         ss.imbue(std::locale(""));
@@ -178,6 +161,12 @@ namespace myFunction
 
 		return mesh;
 	}
+
+	template<typename RandomIt1, typename RandomIt2> 
+	int getDivNum(const RandomIt1 &total, const RandomIt2 part = (RandomIt2)(std::thread::hardware_concurrency()+1))
+	{
+		return std::ceil((double)(total)/(double)(part));
+	}		
 
 #pragma endregion basic
 	
@@ -247,7 +236,7 @@ namespace myFunction
 				std::vector<int> indices (2);
 				std::vector<float> sqr_distances (2);
 
-				tree->nearestKSearch (*it, 2, indices, sqr_distances);
+				tree->nearestKSearch(*it, 2, indices, sqr_distances);
 
 				if ((sqr_distances[1] < sqr_out)&&(sqr_distances[1] != 0.0)) sqr_out = sqr_distances[1];
 			}
@@ -255,19 +244,19 @@ namespace myFunction
 		}
 		auto mid = beg + len/2;
 		auto handle = std::async(std::launch::async, getNearestPointsDistancePart<RandomIt, PointT>, division_num, tree, beg, mid);
-		auto sqr_out = getNearestPointsDistancePart<RandomIt, PointT>(division_num, tree, mid, end);
-		auto sqr_out1 = handle.get();
+		auto out = getNearestPointsDistancePart<RandomIt, PointT>(division_num, tree, mid, end);
+		auto out1 = handle.get();
 
-		if(sqr_out1 < sqr_out) sqr_out = sqr_out1;
+		if(out1 < out) out = out1;
 
-		return std::sqrt(sqr_out);
+		return out;
 	}
 
 	//取得點雲中最近的兩個點距離取得點雲中最近的兩個點距離
 	template<typename PointT>
 	double getNearestPointsDistance(const typename pcl::PointCloud<PointT>::Ptr &cloud)
 	{
-		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+        int division_num = getDivNum<size_t, size_t>(cloud->points.size());
 		typename pcl::search::KdTree<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
  		
 		tree->setInputCloud(cloud);
@@ -286,17 +275,17 @@ namespace myFunction
 
 		if(len1 < division_num)
 		{
-			double out = -std::numeric_limits<double>::max();
+			double sqr_out = -std::numeric_limits<double>::max();
 			for(auto it1 = beg1; it1 != end1; ++it1)
 			{
 				for(auto it2 = beg2; it2 != end2; ++it2)
 				{
 					if(it1 == it2) continue;
 					double dist = distance(*it1, *it2);
-					if(dist > out) out = dist;
+					if(dist > sqr_out) sqr_out = dist;
 				}
 			}
-			return out;
+			return std::sqrt(sqr_out);
 		}
 		auto mid1 = beg1 + len1/2;
 		auto handle = std::async(std::launch::async, getFarthestPointsDistancePart<RandomIt>, division_num, beg1, mid1, beg2, end2);
@@ -305,14 +294,14 @@ namespace myFunction
 
 		if(out1 < out) out = out1;
 
-		return std::sqrt(out);
+		return out;
 	}
 	
 	//取得點雲中最遠的兩個點距離
 	template<typename PointT>
 	double getFarthestPointsDistance(const typename pcl::PointCloud<PointT>::Ptr &cloud)
 	{
-		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+        int division_num = getDivNum<size_t, size_t>(cloud->points.size());
 		
 		return getFarthestPointsDistancePart<decltype(cloud->points.begin())>(division_num, cloud->points.begin(), cloud->points.end(), cloud->points.begin(), cloud->points.end());
 	}
@@ -331,13 +320,28 @@ namespace myFunction
 		{
 			double current;
 			PointT out;
-			for(auto it = beg; it != end; ++it)
+			if(Nearest)
 			{
-				double temp = distance(point.x, point.y, point.z, (*it).x, (*it).y, (*it).z);
-				if((temp > current) ^ Nearest)
+				for(auto it = beg; it != end; ++it)
 				{
-					current = temp;
-					out = *it;
+					double temp = distance(point.x, point.y, point.z, (*it).x, (*it).y, (*it).z);
+					if(temp < current)
+					{
+						current = temp;
+						out = *it;
+					}
+				}
+			}
+			else
+			{
+				for(auto it = beg; it != end; ++it)
+				{
+					double temp = distance(point.x, point.y, point.z, (*it).x, (*it).y, (*it).z);
+					if(temp > current)
+					{
+						current = temp;
+						out = *it;
+					}
 				}
 			}
 			return out;
@@ -355,7 +359,7 @@ namespace myFunction
 	template<typename PointT>
 	PointT getNearOrFarthestPoint(const typename pcl::PointCloud<PointT>::Ptr &cloud, const bool Nearest = true, const PointT point = PointT(0,0,0))
 	{
-		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+        int division_num = getDivNum<size_t, size_t>(cloud->points.size());
 		
 		return getNearOrFarthestPointPart<decltype(cloud->points.begin()), PointT>(division_num, Nearest, point, cloud->points.begin(), cloud->points.end());
 	}
@@ -494,7 +498,7 @@ namespace myFunction
 
 		clouds.resize(lines.size());
 
-		int division_num = std::ceil(lines.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+        int division_num = getDivNum<size_t, size_t>(lines.size());
 		int num = loadMultiPCDPart<decltype(lines.begin()), decltype(clouds.begin()), PointT>(division_num, lines.begin(), lines.end(), clouds.begin(), clouds.end());
 		
 		return num;
@@ -557,7 +561,7 @@ namespace myFunction
 		double min_Distance = distance<PointT>(getNearOrFarthestPoint<PointT>(cloud_in));
 		double max_Distance = distance<PointT>(getNearOrFarthestPoint<PointT>(cloud_in, false));
 		double div = max_Distance - min_Distance;
-		int division_num = std::ceil(cloud_in->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+        int division_num = getDivNum<size_t, size_t>(cloud_in->points.size());
 		
 		cloud_out->points = XYZ_to_XYZRGBPart(division_num, min_Distance, div, gray, cloud_in->points.begin(), cloud_in->points.end());
 		cloud_out->width = (int) cloud_out->points.size();
@@ -596,7 +600,7 @@ namespace myFunction
 
 	int fillColor(const typename pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const uint8_t &r, const uint8_t &g, const uint8_t &b)
 	{
-		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+        int division_num = getDivNum<size_t, size_t>(cloud->points.size());
 		
 		return fillColorPart<decltype(cloud->points.begin())>(division_num, r, g, b, cloud->points.begin(), cloud->points.end());
 	}
@@ -661,7 +665,7 @@ namespace myFunction
 	template<typename PointT>
 	PointT getOrigin(const typename pcl::PointCloud<PointT>::Ptr &cloud)
 	{
-		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+        int division_num = getDivNum<size_t, size_t>(cloud->points.size());
 		
 		PointT out = getOriginPart<decltype(cloud->points.begin()), PointT>(division_num, cloud->points.begin(), cloud->points.end());
 		
@@ -703,7 +707,7 @@ namespace myFunction
 	template<typename PointT>
 	int offsetToOrigin(const typename pcl::PointCloud<PointT>::Ptr &cloud)
 	{
-		int division_num = std::ceil(cloud->points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+        int division_num = getDivNum<size_t, size_t>(cloud->points.size());
 		
 		return offsetToOriginPart(division_num, getOrigin<PointT>(cloud), cloud->points.begin(), cloud->points.end());
 	}
@@ -742,7 +746,7 @@ namespace myFunction
 	template<typename PointT>
 	typename pcl::PointCloud<PointT>::Ptr points_to_pcl(const rs2::points &points)
 	{
-		int division_num = std::ceil(points.size() / std::thread::hardware_concurrency()) + std::thread::hardware_concurrency();
+        int division_num = getDivNum<size_t, size_t>(points.size());
 		
 		typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
 
@@ -947,12 +951,6 @@ namespace myFunction
 		result.y = v.y*t;
 		result.z = v.z*t;
 	}
-
-	template<typename RandomIt1, typename RandomIt2> 
-	int getDivNum(const RandomIt1 &total, const RandomIt2 part = (RandomIt2)(std::thread::hardware_concurrency()+1))
-	{
-		return std::ceil((double)(total)/(double)(part));
-	}		
 
 	void createColor(const int &number, uint8_t &r, uint8_t &g, uint8_t &b)
 	{
