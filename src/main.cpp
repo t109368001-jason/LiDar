@@ -12,6 +12,12 @@
 #include "../include/microStopwatch.h"
 #include "../include/custom_frame.h"
 
+struct Density
+{
+    int number;
+    int times;
+};
+
 typedef pcl::PointXYZRGB PointT;
 
 int fps = 30;
@@ -22,12 +28,182 @@ std::string cwd = std::string(getcwd(NULL, 0)) + '/';
 
 args::ArgumentParser parser("This is a test program.", "This goes after the options.");
 args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
-args::Group group(parser, "This group is all required:", args::Group::Validators::All);
+args::Group group(parser, "This group is all required:", args::Group::Validators::DontCare);
 args::ValueFlag<std::string> inputBag(group, "CLOUD_IN", "input bag path", {'i', "if"});
 args::ValueFlag<std::string> inputBagBackground(group, "CLOUD_IN", "input background cloud path", {'b', "bf"});
 args::ValueFlag<std::string> yolo(group, "CLOUD_IN", "yolo path", {'y', "yp"});
 
 void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing);
+
+int main(int argc, char * argv[])
+{
+    try
+    {
+        parser.ParseCLI(argc, argv);
+    }
+    catch (args::Help)
+    {
+        std::cout << parser;
+        return 0;
+    }
+    catch (args::ParseError e)
+    {
+        std::cerr << e.what() << std::endl;
+        parser.Help(std::cerr);
+        return 1;
+    }
+    catch (args::ValidationError e)
+    {
+        std::cerr << e.what() << std::endl;
+        parser.Help(std::cerr);
+        return 1;
+    }
+
+    double len = 0.01;
+    double x_max = -10, x_min = 10, y_max = -10, y_min = 10, z_max = -10, z_min = 10;
+    myClass::MicroStopwatch tt("main");
+    std::vector<std::vector<std::vector<std::vector<pcl::PointXYZRGB>>>> cube;
+    std::vector<Density> density;
+    std::string backgroundCloudFile = args::get(inputBagBackground);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    if(pcl::io::loadPCDFile(backgroundCloudFile, *cloud) == -1)return 0;
+
+
+
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    std::cerr << "Custom frames object segmentation...", tt.tic();
+    
+    for(int i = 0; i < cloud->points.size(); i++)
+    {
+        if(std::sqrt( cloud->points[i].x*cloud->points[i].x + cloud->points[i].y*cloud->points[i].y + cloud->points[i].z*cloud->points[i].z ) == 0)
+        {
+            continue;
+        }
+        
+        x_max = (x_max < cloud->points[i].x)? cloud->points[i].x : x_max;
+        y_max = (y_max < cloud->points[i].y)? cloud->points[i].y : y_max;
+        z_max = (z_max < cloud->points[i].z)? cloud->points[i].z : z_max;
+        x_min = (x_min > cloud->points[i].x)? cloud->points[i].x : x_min;
+        y_min = (y_min > cloud->points[i].y)? cloud->points[i].y : y_min;
+        z_min = (z_min > cloud->points[i].z)? cloud->points[i].z : z_min;
+        
+    }
+
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << "x_max: " << x_max << "\n";
+    std::cerr << "y_max: " << y_max << "\n";
+    std::cerr << "z_max: " << z_max << "\n";
+    std::cerr << "x_min: " << x_min << "\n";
+    std::cerr << "y_min: " << y_min << "\n";
+    std::cerr << "z_min: " << z_min << "\n";
+    ////////////////////////////////////////////////////////////////*/
+
+
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    std::cerr << "1...", tt.tic();
+    
+    for(int i = 0; i < (std::ceil(z_max-z_min))/len; i++ )
+    {
+        std::vector<std::vector<std::vector<pcl::PointXYZRGB>>> y;
+        for(int j = 0; j < (std::ceil(y_max-y_min))/len; j++)
+        {
+            std::vector<std::vector<pcl::PointXYZRGB>> x((std::ceil(x_max-x_min))/len);
+            y.push_back(x); //line
+        }
+        cube.push_back(y);  //plane
+    }
+    
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    ////////////////////////////////////////////////////////////////*/
+
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    std::cerr << "2...", tt.tic();
+    
+    for(int i = 0; i < cloud->points.size(); i++)
+    {
+        if(std::sqrt( cloud->points[i].x*cloud->points[i].x + cloud->points[i].y*cloud->points[i].y + cloud->points[i].z*cloud->points[i].z ) == 0)
+        {
+            continue;
+        }
+        int z = std::floor((cloud->points[i].z-z_min)/len);
+        int y = std::floor((cloud->points[i].y-y_min)/len);
+        int x = std::floor((cloud->points[i].x-x_min)/len);
+        cube[z][y][x].push_back(cloud->points[i]);
+    }
+
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    ////////////////////////////////////////////////////////////////*/
+
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    std::cerr << "3...", tt.tic();
+
+    int x_shift = 0, y_shift = 0, z_shift = 0;
+    Density temp;
+    bool add_density;
+    for(z_shift = 0; z_shift < cube.size(); z_shift++)
+    {
+        for(y_shift = 0; y_shift < cube[0].size(); y_shift++)
+        {
+            for(x_shift = 0; x_shift < cube[0][0].size(); x_shift++)
+            {
+                add_density = true;
+                for(int i = 0; i < density.size(); i++)
+                {
+                    if(density[i].number == cube[z_shift][y_shift][x_shift].size())
+                    {
+                        density[i].times++;
+                        add_density = false;
+                        break;
+                    }
+                }
+
+                if(add_density == true)
+                {
+                    temp.number = cube[z_shift][y_shift][x_shift].size();
+                    temp.times = 1;
+                    density.push_back(temp);
+                }
+            }
+        }
+    }
+
+
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << density.size() << "\n";
+    ////////////////////////////////////////////////////////////////*/
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    std::cerr << "4...", tt.tic();
+    int number = 0;
+    for(int i = 0; i < density.size(); i++)
+    {
+        number = number + (density[i].number * density[i].times);
+    }
+
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    ////////////////////////////////////////////////////////////////*/
+
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    std::cerr << "save file...", tt.tic();
+
+    ofstream density_file ("density_file.csv");
+
+    if (density_file.is_open())
+    {
+        density_file << "number,times\n";
+        for(int i = 0; i < density.size(); i++)
+        {
+            density_file << density[i].number << ',' <<density[i].times << "\n";
+        }
+        density_file.close();
+    }
+    else std::cerr << "Unable to open file.\n";
+
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    ////////////////////////////////////////////////////////////////*/
+    return 0;
+}
+
 
 void pcl_viewer()
 {
@@ -188,35 +364,6 @@ void pcl_viewer()
     std::cerr << "fy" << fov[1] << std::endl;
     ////////////////////////////////////////////////////////////////*/
 
-}
-
-int main(int argc, char * argv[])
-{
-    try
-    {
-        parser.ParseCLI(argc, argv);
-    }
-    catch (args::Help)
-    {
-        std::cout << parser;
-        return 0;
-    }
-    catch (args::ParseError e)
-    {
-        std::cerr << e.what() << std::endl;
-        parser.Help(std::cerr);
-        return 1;
-    }
-    catch (args::ValidationError e)
-    {
-        std::cerr << e.what() << std::endl;
-        parser.Help(std::cerr);
-        return 1;
-    }
-
-    pcl_viewer();
-
-    return 0;
 }
 
 void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing)
