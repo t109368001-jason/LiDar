@@ -11,6 +11,7 @@
 #include "../include/function.h"
 #include "../include/microStopwatch.h"
 #include "../include/custom_frame.h"
+#include <sys/stat.h>
 
 struct Density
 {
@@ -58,8 +59,10 @@ int main(int argc, char * argv[])
         parser.Help(std::cerr);
         return 1;
     }
-
-    double len = 0.01;
+for(int t = 2; t < 21 ;t = t + 2){
+    double len = 0.005;  //squre_size = len * shift_len;
+    int shift_len = t;   //shift_len = len;
+    std::string file_name = std::string("density_file_size") + std::to_string(int(len * 100 * shift_len)) + "_shift_len0" + std::to_string(int(len * 1000)) + ".csv";
     double x_max = -10, x_min = 10, y_max = -10, y_min = 10, z_max = -10, z_min = 10;
     myClass::MicroStopwatch tt("main");
     std::vector<std::vector<std::vector<std::vector<pcl::PointXYZRGB>>>> cube;
@@ -72,7 +75,7 @@ int main(int argc, char * argv[])
 
 
     ////////// custom frames object segmentation //////////////////////////////////////////////////////
-    std::cerr << "Custom frames object segmentation...", tt.tic();
+    std::cerr << "Check x,y,z max&min size...", tt.tic();
     
     for(int i = 0; i < cloud->points.size(); i++)
     {
@@ -141,16 +144,16 @@ int main(int argc, char * argv[])
     int x_shift = 0, y_shift = 0, z_shift = 0;
     Density temp;
     bool add_density;
-    for(z_shift = 0; z_shift < cube.size(); z_shift++)
+    for(z_shift = 0; z_shift < cube.size() - shift_len; z_shift++)
     {
-        for(y_shift = 0; y_shift < cube[0].size(); y_shift++)
+        for(y_shift = 0; y_shift < cube[0].size() - shift_len; y_shift++)
         {
-            for(x_shift = 0; x_shift < cube[0][0].size(); x_shift++)
+            for(x_shift = 0; x_shift < cube[0][0].size() - shift_len; x_shift++)
             {
                 add_density = true;
                 for(int i = 0; i < density.size(); i++)
                 {
-                    if(density[i].number == cube[z_shift][y_shift][x_shift].size())
+                    if(density[i].number == (cube[z_shift + shift_len][y_shift][x_shift].size() + cube[z_shift + shift_len][y_shift + shift_len][x_shift].size() + cube[z_shift + shift_len][y_shift][x_shift + shift_len].size() + cube[z_shift + shift_len][y_shift + shift_len][x_shift + shift_len].size()))
                     {
                         density[i].times++;
                         add_density = false;
@@ -160,7 +163,7 @@ int main(int argc, char * argv[])
 
                 if(add_density == true)
                 {
-                    temp.number = cube[z_shift][y_shift][x_shift].size();
+                    temp.number = (cube[z_shift + shift_len][y_shift][x_shift].size() + cube[z_shift + shift_len][y_shift + shift_len][x_shift].size() + cube[z_shift + shift_len][y_shift][x_shift + shift_len].size() + cube[z_shift + shift_len][y_shift + shift_len][x_shift + shift_len].size());
                     temp.times = 1;
                     density.push_back(temp);
                 }
@@ -179,29 +182,44 @@ int main(int argc, char * argv[])
     {
         number = number + (density[i].number * density[i].times);
     }
-
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << number << '\n';
     ////////////////////////////////////////////////////////////////*/
 
     ////////// custom frames object segmentation //////////////////////////////////////////////////////
     std::cerr << "save file...", tt.tic();
 
-    ofstream density_file ("density_file.csv");
+    struct stat buffer;
+    bool file_exists = (stat (file_name.c_str(), &buffer) == 0)? true : false;
 
-    if (density_file.is_open())
+    if (file_exists == false)
     {
-        density_file << "number,times\n";
-        for(int i = 0; i < density.size(); i++)
+        ofstream density_file (file_name);
+
+        if (density_file.is_open())
         {
-            density_file << density[i].number << ',' <<density[i].times << "\n";
+            density_file << "number,times\n";
+            for(int i = 0; i < density.size(); i++)
+            {
+                density_file << density[i].number << ',' <<density[i].times << "\n";
+            }
+            density_file.close();
         }
-        density_file.close();
+        else std::cerr << "Unable to open file.\n";
     }
-    else std::cerr << "Unable to open file.\n";
+    else std::cerr << "\nthis file is exist!\n";
+
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    std::cerr << " >> Done: " << file_name << '\n';
+    ////////////////////////////////////////////////////////////////*/
+
+    /*///////// custom frames object segmentation //////////////////////////////////////////////////////
+    std::cerr << "test file exists...", tt.tic();
 
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     ////////////////////////////////////////////////////////////////*/
-    return 0;
+}
+return 0;
 }
 
 
@@ -381,4 +399,3 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void*
         }
     }
 }
-
