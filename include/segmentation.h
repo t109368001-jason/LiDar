@@ -16,10 +16,11 @@ namespace myClass
 	{
 		private:
 			bool isSet;
+			bool log_to_file;
 			typename pcl::PointCloud<PointT>::Ptr background;
 			pcl::octree::OctreePointCloudChangeDetector<PointT> *octree;
 		public:
-			void setBackground(const typename pcl::PointCloud<PointT>::Ptr &background, const double &resolution = 1)
+			void setBackground(const typename pcl::PointCloud<PointT>::Ptr &background, const double &resolution = 1, const bool log_to_file = false)
 			{
 				this->background = background;
 				
@@ -28,10 +29,18 @@ namespace myClass
 				this->octree->addPointsFromInputCloud();
 				this->octree->switchBuffers();
 
+				this->log_to_file = log_to_file;
+
+				if(this->log_to_file)
+				{
+					std::ofstream ofs("backgroundSegmentation.csv", ios::ate);
+					ofs << "name" << "," << "total" << "," << "after segmentation" << std::endl;
+				}
+
 				this->isSet = true;
 			}
 
-			typename pcl::PointCloud<PointT>::Ptr compute(const typename pcl::PointCloud<PointT>::Ptr &cloud)
+			typename pcl::PointCloud<PointT>::Ptr compute(const typename pcl::PointCloud<PointT>::Ptr &cloud, const std::string name = "")
 			{
 				if(!isSet)
 				{
@@ -55,7 +64,14 @@ namespace myClass
 
 				temp->width = (int) temp->points.size();
 				temp->height = 1;
-				
+
+				if(this->log_to_file)
+				{
+					std::ofstream ofs("backgroundSegmentation.csv", ios::app);
+					ofs << name << "," << cloud->points.size() << "," << temp->points.size() << std::endl;
+					ofs.close();
+				}
+
 				return temp;
 			}
 			

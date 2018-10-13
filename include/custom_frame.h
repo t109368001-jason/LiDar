@@ -64,6 +64,22 @@ namespace myFrame
                     
                     this->detect(png_file, bridge_file);
 
+                    /////////////////////////////////////////////////////////////////////////
+                    rs2::decimation_filter dec_filter;  // Decimation - reduces depth frame density
+                    rs2::spatial_filter spat_filter;    // Spatial    - edge-preserving spatial smoothing
+                    rs2::temporal_filter temp_filter;   // Temporal   - reduces temporal noise
+                    const std::string disparity_filter_name = "Disparity";
+                    rs2::disparity_transform depth_to_disparity(true);
+                    rs2::disparity_transform disparity_to_depth(false);
+
+                    frameDepth = dec_filter.process(frameDepth);
+                    frameDepth = depth_to_disparity.process(frameDepth);
+                    frameDepth = spat_filter.process(frameDepth);
+                    frameDepth = temp_filter.process(frameDepth);
+                    frameDepth = disparity_to_depth.process(frameDepth);
+                    ////////////////////////////////////////////////////////////////////////*/
+
+
                     rs2::points points;
                     points = rs2::pointcloud().calculate(frameDepth);
 
@@ -214,11 +230,21 @@ namespace myFrame
 
             bool backgroundSegmentation(myClass::backgroundSegmentation<PointT> &background_segmentation)
             {
-                for(auto it = this->yolo_objects.begin(); it != this->yolo_objects.end(); ++it)
+                this->entire_cloud = background_segmentation.compute(this->entire_cloud, this->file_name);
+                /*for(auto it = this->yolo_objects.begin(); it != this->yolo_objects.end(); ++it)
                 {
-                     (*it)->cloud = background_segmentation.compute((*it)->cloud);
-                }
+                     (*it)->cloud = background_segmentation.compute((*it)->cloud, this->file_name);
+                }*/
                 return true;
+            }
+
+            bool noiseRemoval(const int meanK = 50, const double StddevMulThresh = 1.0)
+            {
+                pcl::StatisticalOutlierRemoval<PointT> sor;
+                sor.setInputCloud (this->entire_cloud);
+                sor.setMeanK (meanK);
+                sor.setStddevMulThresh (StddevMulThresh);
+                sor.filter (*(this->entire_cloud));
             }
 
             friend ostream& operator<<(ostream &out, CustomFrame &obj)
@@ -502,6 +528,40 @@ namespace myFrame
     }
 
 #pragma endregion backgroundSegmentationCustomFrames
+
+#pragma region noiseRemovalCustomFrames
+
+	template<typename RandomIt>
+	int noiseRemovalCustomFramesPart(const int &division_num, const int &meanK, const double &StddevMulThresh, const RandomIt &beg, const RandomIt &end)
+	{
+		auto len = end - beg;
+
+		if(len < division_num)
+		{
+            int out;
+			for(auto it = beg; it != end; ++it)
+			{
+                (*it)->noiseRemoval(meanK, StddevMulThresh);
+			}
+			return out;
+		}
+		auto mid = beg + len/2;
+		auto handle = std::async(std::launch::async, noiseRemovalCustomFramesPart<RandomIt>, division_num, meanK, StddevMulThresh, beg, mid);
+		auto out = noiseRemovalCustomFramesPart<RandomIt>(division_num, meanK, StddevMulThresh, mid, end);
+		auto out1 = handle.get();
+
+		return out + out1;
+	}
+
+    template<typename PointT>
+	bool noiseRemovalCustomFrames(std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, const int meanK = 50, const double StddevMulThresh = 1.0)
+	{
+        int division_num = myFunction::getDivNum<size_t, size_t>(customFrames.size());
+
+        int count = noiseRemovalCustomFramesPart(division_num, meanK, StddevMulThresh, customFrames.begin(), customFrames.end());
+    }
+
+#pragma endregion noiseRemovalCustomFrames
 
 }
 #endif

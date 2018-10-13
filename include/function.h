@@ -11,6 +11,7 @@
 #include <pcl/surface/poisson.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/octree/octree_pointcloud_changedetector.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 #include "../include/date.h"
 
 using namespace std;
@@ -163,7 +164,7 @@ namespace myFunction
 	}
 
 	template<typename RandomIt1, typename RandomIt2> 
-	int getDivNum(const RandomIt1 &total, const RandomIt2 part = (RandomIt2)(std::thread::hardware_concurrency()+1))
+	int getDivNum(const RandomIt1 &total, const RandomIt2 part = (RandomIt2)(std::thread::hardware_concurrency()))
 	{
 		return std::ceil((double)(total)/(double)(part));
 	}		
@@ -751,11 +752,13 @@ namespace myFunction
 		typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
 
 		auto sp = points.get_profile().as<rs2::video_stream_profile>();
+		
+		auto ptr = points.get_vertices();
+		/*////////////////////////////////////////////////////////////////////////
 		cloud->width = sp.width();
 		cloud->height = sp.height();
 		cloud->is_dense = false;
 		cloud->points.resize(points.size());
-		auto ptr = points.get_vertices();
 
 		int count = points_to_pclPart(division_num, ptr, cloud->points.begin(), cloud->points.end());
 		/*for (auto& p : cloud->points)
@@ -765,7 +768,24 @@ namespace myFunction
 			p.z = ptr->z;
 			ptr++;
 		}*/
+		/////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////
+		for(int i = 0; i < points.size(); i++)
+		{
+			if(fabs(ptr->x*ptr->y*ptr->z) != 0)
+			{
+				PointT p;
+				p.x = ptr->x;
+				p.y = ptr->y;
+				p.z = ptr->z;
+				cloud->points.push_back(p);
+			}
+			ptr++;
+		}
 
+		cloud->width = (int) cloud->points.size();
+		cloud->height = 1;
+		/////////////////////////////////////////////////////////////////////////
 		return cloud;
 	}
 
@@ -1041,6 +1061,18 @@ namespace myFunction
 			g = 64;
 			b = 64;
 		}
+	}
+	
+	template<typename PointT>
+	typename pcl::PointCloud<PointT>::Ptr outlierRemoval(const typename pcl::PointCloud<PointT>::Ptr &cloud, const int meanK = 50, const double StddevMulThresh = 1.0)
+	{
+		typename pcl::PointCloud<PointT>::Ptr temp;
+		pcl::StatisticalOutlierRemoval<PointT> sor;
+		sor.setInputCloud (cloud);
+		sor.setMeanK (meanK);
+		sor.setStddevMulThresh (StddevMulThresh);
+		sor.filter (*temp);
+		return temp;
 	}
 
 }
