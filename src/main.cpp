@@ -44,96 +44,33 @@ args::ValueFlag<std::string> yolo(group, "CLOUD_IN", "yolo path", {'y', "yp"});
 
 void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing);
 
-bool density_cal_part (const double &shift_len, const int &cube_len, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
+bool density_cal_part (const double &shift_len, const double &x_ran, const double &y_ran, const double &z_ran, const std::vector<Cube> &cube, const int &cube_len, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 {
     //squre_size = shift_len * cube_len;
     //cube_len = shift_len;
     std::string file_name = std::string("density_file_size") + std::to_string(int(shift_len * 200 * cube_len)) + "_cube_len0" + std::to_string(int(shift_len * 1000)) + ".csv";
-    double x_max = -10, x_min = 10, y_max = -10, y_min = 10, z_max = -10, z_min = 10;
-    std::vector<Cube> cube;
     std::vector<Density> density;
-
-    ////////// custom frames object segmentation //////////////////////////////////////////////////////
-    for(int i = 0; i < cloud->points.size(); i++)
-    {
-        if(std::sqrt( cloud->points[i].x*cloud->points[i].x + cloud->points[i].y*cloud->points[i].y + cloud->points[i].z*cloud->points[i].z ) == 0)
-        {
-            continue;
-        }
-        
-        x_max = (x_max < cloud->points[i].x)? cloud->points[i].x : x_max;
-        y_max = (y_max < cloud->points[i].y)? cloud->points[i].y : y_max;
-        z_max = (z_max < cloud->points[i].z)? cloud->points[i].z : z_max;
-        x_min = (x_min > cloud->points[i].x)? cloud->points[i].x : x_min;
-        y_min = (y_min > cloud->points[i].y)? cloud->points[i].y : y_min;
-        z_min = (z_min > cloud->points[i].z)? cloud->points[i].z : z_min;
-        
-    }
-    ////////////////////////////////////////////////////////////////*/
-
-    ////////// custom frames object segmentation //////////////////////////////////////////////////////
-    bool add_cube;
-    Cube temp_cube;
-    for(int i = 0; i < cloud->points.size(); i++)
-    {
-        if(std::sqrt( cloud->points[i].x*cloud->points[i].x + cloud->points[i].y*cloud->points[i].y + cloud->points[i].z*cloud->points[i].z ) == 0)
-        {
-            continue;
-        }
-        int z = std::floor((cloud->points[i].z-z_min)/shift_len);
-        int y = std::floor((cloud->points[i].y-y_min)/shift_len);
-        int x = std::floor((cloud->points[i].x-x_min)/shift_len);
-
-        add_cube = true;
-
-        for(int k = 0; k < cube.size(); k++)
-        {
-            if(cube[i].x == x)
-            {
-                if(cube[i].y == y)
-                {
-                    if(cube[i].z == z)
-                    {
-                        cube[i].number++;
-                        add_cube = false;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if(add_cube == true)
-        {
-            temp_cube.number = 1;
-            temp_cube.x = x;
-            temp_cube.y = y;
-            temp_cube.z = z;
-            cube.push_back(temp_cube);
-        }
-    }
-std::cerr << cube.size() << '\n';
-    ////////////////////////////////////////////////////////////////*/
 
     ////////// custom frames object segmentation //////////////////////////////////////////////////////
     int cube_size = 0;
     int x_shift = 0, y_shift = 0, z_shift = 0;
     Density temp;
     bool add_density;
-    for(z_shift = 0; z_shift < std::ceil((z_max-z_min)/shift_len); z_shift++)
+    for(z_shift = 0; z_shift < z_ran; z_shift++)
     {
-        for(y_shift = 0; y_shift < std::ceil((y_max-y_min)/shift_len); y_shift++)
+        for(y_shift = 0; y_shift < y_ran; y_shift++)
         {
-            for(x_shift = 0; x_shift < std::ceil((x_max-x_min)/shift_len); x_shift++)
+            for(x_shift = 0; x_shift < x_ran; x_shift++)
             {
                 add_density = true;
                 cube_size = 0;
                 for(int k = 0; k < cube.size(); k++)
                 {
-                    if((cube[k].z >= z_shift) && (cube[k].z < z_shift + cube_len))
+                    if((cube[k].z >= z_shift) && (cube[k].z < (z_shift + cube_len)))
                     {
-                        if((cube[k].y >= y_shift) && (cube[k].y < y_shift + cube_len))
+                        if((cube[k].y >= y_shift) && (cube[k].y < (y_shift + cube_len)))
                         {
-                            if((cube[k].x >= x_shift) && (cube[k].x < x_shift + cube_len))
+                            if((cube[k].x >= x_shift) && (cube[k].x < (x_shift + cube_len)))
                             {
                                 cube_size = cube_size + cube[k].number;
                             }
@@ -172,8 +109,6 @@ std::cerr << cube.size() << '\n';
     ////////////////////////////////////////////////////////////////*/
 
     ////////// custom frames object segmentation //////////////////////////////////////////////////////
-
-
     struct stat buffer;
     bool file_exists = (stat (file_name.c_str(), &buffer) == 0)? true : false;
 
@@ -335,12 +270,12 @@ bool density_cal_part2 (const double &shift_len, const int &cube_len, const pcl:
     ////////////////////////////////////////////////////////////////*/
 }
 
-bool density_cal (const double &shift_len, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const int &beg, const int &end)
+bool density_cal (const double &shift_len, const double &x_ran, const double &y_ran, const double &z_ran, const std::vector<Cube> &cube, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const int &beg, const int &end)
 {
     bool temp;
     for(int i = beg; i < end; i++)
     {
-        temp = density_cal_part(shift_len, i, cloud);
+        temp = density_cal_part(shift_len, x_ran, y_ran, z_ran, cube, i, cloud);
     }
     return temp;
 }
@@ -372,21 +307,91 @@ int main(int argc, char * argv[])
     myClass::MicroStopwatch tt("main");
     std::string backgroundCloudFile = args::get(inputBagBackground);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    double shift_len = 0.01;
+    double x_max = -10, x_min = 10, y_max = -10, y_min = 10, z_max = -10, z_min = 10;
+    double x_ran, y_ran, z_ran;
+    std::vector<Cube> cube;
 
     if(pcl::io::loadPCDFile(backgroundCloudFile, *cloud) == -1)return 0;
 
-    double shift_len = 0.005;
-	auto handle0 = std::async(std::launch::async, density_cal, shift_len, cloud, 1, 4);
-    auto out0 = handle0.get();
-	/*
-	auto handle0 = std::async(std::launch::async, density_cal, shift_len, cloud, 1, 4);
-    auto handle1 = std::async(std::launch::async, density_cal, shift_len, cloud, 4, 7);
-	auto handle2 = std::async(std::launch::async, density_cal, shift_len, cloud, 7, 10);
-	auto handle3 = std::async(std::launch::async, density_cal, shift_len, cloud, 10, 13);
-	auto handle4 = std::async(std::launch::async, density_cal, shift_len, cloud, 13, 16);
-	auto handle5 = std::async(std::launch::async, density_cal, shift_len, cloud, 16, 19);
-	auto handle6 = std::async(std::launch::async, density_cal, shift_len, cloud, 19, 22);
-	auto handle7 = std::async(std::launch::async, density_cal, shift_len, cloud, 22, 25);
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    for(int i = 0; i < cloud->points.size(); i++)
+    {
+        if(std::sqrt( cloud->points[i].x*cloud->points[i].x + cloud->points[i].y*cloud->points[i].y + cloud->points[i].z*cloud->points[i].z ) == 0)
+        {
+            continue;
+        }
+        
+        x_max = (x_max < cloud->points[i].x)? cloud->points[i].x : x_max;
+        y_max = (y_max < cloud->points[i].y)? cloud->points[i].y : y_max;
+        z_max = (z_max < cloud->points[i].z)? cloud->points[i].z : z_max;
+        x_min = (x_min > cloud->points[i].x)? cloud->points[i].x : x_min;
+        y_min = (y_min > cloud->points[i].y)? cloud->points[i].y : y_min;
+        z_min = (z_min > cloud->points[i].z)? cloud->points[i].z : z_min;    
+    }
+
+    x_ran = std::ceil((x_max-x_min) / shift_len);
+    y_ran = std::ceil((y_max-y_min) / shift_len);
+    z_ran = std::ceil((z_max-z_min) / shift_len);
+    ////////////////////////////////////////////////////////////////*/
+
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    std::cerr << "1...", tt.tic();
+
+    bool add_cube;
+    Cube temp_cube;
+    for(int i = 0; i < cloud->points.size(); i++)
+    {
+        if(std::sqrt( cloud->points[i].x*cloud->points[i].x + cloud->points[i].y*cloud->points[i].y + cloud->points[i].z*cloud->points[i].z ) == 0)
+        {
+            continue;
+        }
+        int z = std::floor((cloud->points[i].z-z_min)/shift_len);
+        int y = std::floor((cloud->points[i].y-y_min)/shift_len);
+        int x = std::floor((cloud->points[i].x-x_min)/shift_len);
+
+        add_cube = true;
+
+        for(int k = 0; k < cube.size(); k++)
+        {
+            if(cube[k].x == x)
+            {
+                if(cube[k].y == y)
+                {
+                    if(cube[k].z == z)
+                    {
+                        cube[k].number++;
+                        add_cube = false;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if(add_cube == true)
+        {
+            temp_cube.number = 1;
+            temp_cube.x = x;
+            temp_cube.y = y;
+            temp_cube.z = z;
+            cube.push_back(temp_cube);
+        }
+    }
+    
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    
+    ////////////////////////////////////////////////////////////////*/
+    std::cerr << "2...", tt.tic();
+    
+	///////
+	auto handle0 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 1, 4);
+    auto handle1 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 4, 7);
+	auto handle2 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 7, 10);
+	auto handle3 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 10, 13);
+	auto handle4 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 13, 16);
+	auto handle5 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 16, 19);
+	auto handle6 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 19, 22);
+	auto handle7 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 22, 25);
     auto out0 = handle0.get();
     auto out1 = handle1.get();
     auto out2 = handle2.get();
@@ -395,10 +400,11 @@ int main(int argc, char * argv[])
     auto out5 = handle5.get();
     auto out6 = handle6.get();
     auto out7 = handle7.get();
-    */
+    
 
-    if(out0/* && out1  && out2 && out3 && out4 && out5 && out6 && out7*/)std::cerr << "Error\n";
+    if(out0 && out1  && out2 && out3 && out4 && out5 && out6 && out7)std::cerr << "Error\n";
 
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     
     /*///////// custom frames object segmentation //////////////////////////////////////////////////////
     std::cerr << "test file exists...", tt.tic();
