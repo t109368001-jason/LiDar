@@ -152,7 +152,7 @@ namespace myFunction
 	bool fileExists(const std::string &filename)
 	{
 		struct stat buffer;
-		return stat(filename.c_str(), &buffer) == 0;
+		return (stat(filename.c_str(), &buffer) == 0)&&(filename == "");
 	}
 
 	pcl::PolygonMesh stl_to_mesh(std::string filename)
@@ -164,7 +164,7 @@ namespace myFunction
 	}
 
 	template<typename RandomIt1, typename RandomIt2> 
-	int getDivNum(const RandomIt1 &total, const RandomIt2 part = (RandomIt2)(std::thread::hardware_concurrency()))
+	int getDivNum(const RandomIt1 &total, const RandomIt2 part = (RandomIt2)(std::thread::hardware_concurrency()+1))
 	{
 		return std::ceil((double)(total)/(double)(part));
 	}		
@@ -1033,7 +1033,7 @@ namespace myFunction
 	{
 		if(name == "car")
 		{
-			r = 255;
+			r = 0;
 			g = 255;
 			b = 255;
 		}
@@ -1057,9 +1057,9 @@ namespace myFunction
 		}
 		else
 		{
-			r = 64;
-			g = 64;
-			b = 64;
+			r = 255;
+			g = 255;
+			b = 255;
 		}
 	}
 	
