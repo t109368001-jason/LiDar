@@ -86,9 +86,9 @@ bool density_cal_part (const double &shift_len, const int &cube_len, const pcl::
 
         add_cube = true;
 
-        for(int i = 0; i < cube.size(); i++)
+        for(int k = 0; k < cube.size(); k++)
         {
-            if((cube[i].x == x)
+            if(cube[i].x == x)
             {
                 if(cube[i].y == y)
                 {
