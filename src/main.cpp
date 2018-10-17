@@ -19,12 +19,152 @@ struct Density
     int times;
 };
 
-struct Cube
+class DimZ
 {
-    int x;
-    int y;
-    int z;
-    int number;
+    int dim;
+    int num;
+public:
+    DimZ (int z)
+    {
+        this->dim = z;
+        this->num = 1;
+    }   
+
+    bool add (int z)
+    {
+        if(z == this->dim)
+        {
+            this->num++;
+            return true;
+        }
+
+        return false;
+    }
+
+    int get (int z, int cube_len) const
+    {
+        if(this->dim >= z && this->dim < (z + cube_len)) return this->num;
+        return 0;
+    }
+};
+
+class DimY
+{
+    int dim;
+    std::vector<DimZ> subD;
+
+public:
+    DimY(int y, int z)
+    {
+        this->dim = y;
+        this->subD.push_back(DimZ(z));
+    }
+
+    bool add (int y,int z)
+    {
+        if(y == this->dim)
+        {
+            for(int i; i < this->subD.size(); i++)
+            {
+                if (this->subD[i].add(z))
+                {
+                    return true;
+                }
+            }
+
+            this->subD.push_back(DimZ(z));
+            return true;
+        }
+        return false;
+    }
+
+    int get (int y, int z, int cube_len) const
+    {
+        int temp = 0;
+        if(this->dim >= y && this->dim < (y + cube_len)) 
+        {
+            for(int i; i < this->subD.size(); i++)
+            {
+                temp += this->subD[i].get(z, cube_len);
+            }
+        }
+        return temp;
+    }
+};
+
+class DimX
+{
+    int dim;
+    std::vector<DimY> subD;
+
+public:
+    DimX(int x,int y, int z)
+    {
+        this->dim = x;
+        this->subD.push_back(DimY(y, z));
+    }
+
+    bool add (int x, int y, int z)
+    {
+        if(x == this->dim)
+        {
+            for(int i; i < this->subD.size(); i++)
+            {
+                if (this->subD[i].add(y, z))
+                {
+                    return true;
+                }
+            }
+            
+            this->subD.push_back(DimY(y, z));
+            return true;
+        }
+        return false;
+    }
+
+    int get (int x, int y, int z, int cube_len) const
+    {
+        int temp = 0;
+        if(this->dim >= x && this->dim < (x + cube_len)) 
+        {
+            for(int i; i < this->subD.size(); i++)
+            {
+                temp += this->subD[i].get(y, z, cube_len);
+            }
+        }
+        return temp;
+    }
+
+};
+
+class Cubes
+{
+    vector<DimX> subD;
+
+public:
+    void add (int x, int y, int z)
+    {
+        for(int i; i < this->subD.size(); i++)
+        {
+            if (this->subD[i].add(x, y, z))
+            {
+                return ;
+            }
+        }
+            
+        this->subD.push_back(DimX(x, y, z));
+    }
+
+    int get (int x, int y, int z, int cube_len) const
+    {
+        int temp = 0;
+        for(int i; i < this->subD.size(); i++)
+        {
+            temp += this->subD[i].get(x, y, z, cube_len);
+        }
+        
+        return temp;
+    }
 };
 
 typedef pcl::PointXYZRGB PointT;
@@ -44,7 +184,7 @@ args::ValueFlag<std::string> yolo(group, "CLOUD_IN", "yolo path", {'y', "yp"});
 
 void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing);
 
-bool density_cal_part (const double &shift_len, const double &x_ran, const double &y_ran, const double &z_ran, const std::vector<Cube> &cube, const int &cube_len, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
+bool density_cal_part (const double &shift_len, const double &x_ran, const double &y_ran, const double &z_ran, const Cubes &cube, const int &cube_len, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 {
     //squre_size = shift_len * cube_len;
     //cube_len = shift_len;
@@ -56,163 +196,19 @@ bool density_cal_part (const double &shift_len, const double &x_ran, const doubl
     int x_shift = 0, y_shift = 0, z_shift = 0;
     Density temp;
     bool add_density;
-    for(z_shift = 0; z_shift < z_ran; z_shift++)
-    {
-        for(y_shift = 0; y_shift < y_ran; y_shift++)
-        {
-            for(x_shift = 0; x_shift < x_ran; x_shift++)
-            {
-                add_density = true;
-                cube_size = 0;
-                for(int k = 0; k < cube.size(); k++)
-                {
-                    if((cube[k].z >= z_shift) && (cube[k].z < (z_shift + cube_len)))
-                    {
-                        if((cube[k].y >= y_shift) && (cube[k].y < (y_shift + cube_len)))
-                        {
-                            if((cube[k].x >= x_shift) && (cube[k].x < (x_shift + cube_len)))
-                            {
-                                cube_size = cube_size + cube[k].number;
-                            }
-                        }
-                    }
-                }
 
-                for(int i = 0; i < density.size(); i++)
-                {
-                    if(density[i].number == cube_size)
-                    {
-                        density[i].times++;
-                        add_density = false;
-                        break;
-                    }
-                }
-
-                if(add_density == true)
-                {
-                    temp.number = cube_size;
-                    temp.times = 1;
-                    density.push_back(temp);
-                }
-            }
-        }
-    }
-
-    ////////////////////////////////////////////////////////////////*/
-
-    /*///////// custom frames object segmentation //////////////////////////////////////////////////////
-    int number = 0;
-    for(int i = 0; i < density.size(); i++)
-    {
-        number = number + (density[i].number * density[i].times);
-    }
-    ////////////////////////////////////////////////////////////////*/
-
-    ////////// custom frames object segmentation //////////////////////////////////////////////////////
-    struct stat buffer;
-    bool file_exists = (stat (file_name.c_str(), &buffer) == 0)? true : false;
-
-    if (file_exists == false)
-    {
-        ofstream density_file (file_name);
-
-        if (density_file.is_open())
-        {
-            density_file << "number,times\n";
-            for(int i = 0; i < density.size(); i++)
-            {
-                density_file << density[i].number << ',' <<density[i].times << "\n";
-            }
-            density_file.close();
-        }
-        else return false;
-    }
-    else return false;
-
-    ////////////////////////////////////////////////////////////////*/
-}
-
-bool density_cal_part2 (const double &shift_len, const int &cube_len, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
-{
-    //squre_size = shift_len * cube_len;
-    //cube_len = shift_len;
-    std::string file_name = std::string("density_file_size") + std::to_string(int(shift_len * 100 * cube_len)) + "_cube_len0" + std::to_string(int(shift_len * 1000)) + ".csv";
-    double x_max = -10, x_min = 10, y_max = -10, y_min = 10, z_max = -10, z_min = 10;
-    std::vector<std::vector<std::vector<std::vector<pcl::PointXYZRGB>>>> cube;
-    std::vector<Density> density;
-
-    ////////// custom frames object segmentation //////////////////////////////////////////////////////
-    for(int i = 0; i < cloud->points.size(); i++)
-    {
-        if(std::sqrt( cloud->points[i].x*cloud->points[i].x + cloud->points[i].y*cloud->points[i].y + cloud->points[i].z*cloud->points[i].z ) == 0)
-        {
-            continue;
-        }
-        
-        x_max = (x_max < cloud->points[i].x)? cloud->points[i].x : x_max;
-        y_max = (y_max < cloud->points[i].y)? cloud->points[i].y : y_max;
-        z_max = (z_max < cloud->points[i].z)? cloud->points[i].z : z_max;
-        x_min = (x_min > cloud->points[i].x)? cloud->points[i].x : x_min;
-        y_min = (y_min > cloud->points[i].y)? cloud->points[i].y : y_min;
-        z_min = (z_min > cloud->points[i].z)? cloud->points[i].z : z_min;
-        
-    }
-
-    ////////////////////////////////////////////////////////////////*/
-
-
-    ////////// custom frames object segmentation //////////////////////////////////////////////////////
-    for(int i = 0; i < (std::ceil(z_max-z_min))/shift_len; i++ )
-    {
-        std::vector<std::vector<std::vector<pcl::PointXYZRGB>>> y;
-        for(int j = 0; j < (std::ceil(y_max-y_min))/shift_len; j++)
-        {
-            std::vector<std::vector<pcl::PointXYZRGB>> x((std::ceil(x_max-x_min))/shift_len);
-            y.push_back(x); //line
-        }
-        cube.push_back(y);  //plane
-    }
+    int x_rans = x_ran - cube_len;
+    int y_rans = y_ran - cube_len;
+    int z_rans = z_ran - cube_len;
     
-    ////////////////////////////////////////////////////////////////*/
-
-    ////////// custom frames object segmentation //////////////////////////////////////////////////////
-    for(int i = 0; i < cloud->points.size(); i++)
+    for(z_shift = 0; z_shift < z_rans; z_shift++)
     {
-        if(std::sqrt( cloud->points[i].x*cloud->points[i].x + cloud->points[i].y*cloud->points[i].y + cloud->points[i].z*cloud->points[i].z ) == 0)
+        for(y_shift = 0; y_shift < y_rans; y_shift++)
         {
-            continue;
-        }
-        int z = std::floor((cloud->points[i].z-z_min)/shift_len);
-        int y = std::floor((cloud->points[i].y-y_min)/shift_len);
-        int x = std::floor((cloud->points[i].x-x_min)/shift_len);
-        cube[z][y][x].push_back(cloud->points[i]);
-    }
-
-    ////////////////////////////////////////////////////////////////*/
-
-    ////////// custom frames object segmentation //////////////////////////////////////////////////////
-    int cube_size = 0;
-    int x_shift = 0, y_shift = 0, z_shift = 0;
-    Density temp;
-    bool add_density;
-    for(z_shift = 0; z_shift < cube.size() - cube_len; z_shift++)
-    {
-        for(y_shift = 0; y_shift < cube[0].size() - cube_len; y_shift++)
-        {
-            for(x_shift = 0; x_shift < cube[0][0].size() - cube_len; x_shift++)
+            for(x_shift = 0; x_shift < x_rans; x_shift++)
             {
                 add_density = true;
-
-                for(int z = 0; z < cube_len; z++)
-                    {
-                        for(int y = 0; y < cube_len; y++)
-                        {
-                            for(int x = 0; x < cube_len; x++)
-                            {
-                                cube_size = cube_size + cube[z_shift + z][y_shift + y][x_shift + x].size();
-                            }
-                        }
-                    }
+                cube_size = cube.get(x_shift, y_shift, z_shift, cube_len);
 
                 for(int i = 0; i < density.size(); i++)
                 {
@@ -245,8 +241,6 @@ bool density_cal_part2 (const double &shift_len, const int &cube_len, const pcl:
     ////////////////////////////////////////////////////////////////*/
 
     ////////// custom frames object segmentation //////////////////////////////////////////////////////
-
-
     struct stat buffer;
     bool file_exists = (stat (file_name.c_str(), &buffer) == 0)? true : false;
 
@@ -270,7 +264,7 @@ bool density_cal_part2 (const double &shift_len, const int &cube_len, const pcl:
     ////////////////////////////////////////////////////////////////*/
 }
 
-bool density_cal (const double &shift_len, const double &x_ran, const double &y_ran, const double &z_ran, const std::vector<Cube> &cube, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const int &beg, const int &end)
+bool density_cal (const double &shift_len, const double &x_ran, const double &y_ran, const double &z_ran, const Cubes &cube, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const int &beg, const int &end)
 {
     bool temp;
     for(int i = beg; i < end; i++)
@@ -310,7 +304,7 @@ int main(int argc, char * argv[])
     double shift_len = 0.01;
     double x_max = -10, x_min = 10, y_max = -10, y_min = 10, z_max = -10, z_min = 10;
     double x_ran, y_ran, z_ran;
-    std::vector<Cube> cube;
+    Cubes cube;
 
     if(pcl::io::loadPCDFile(backgroundCloudFile, *cloud) == -1)return 0;
 
@@ -338,8 +332,6 @@ int main(int argc, char * argv[])
     ////////// custom frames object segmentation //////////////////////////////////////////////////////
     std::cerr << "1...", tt.tic();
 
-    bool add_cube;
-    Cube temp_cube;
     for(int i = 0; i < cloud->points.size(); i++)
     {
         if(std::sqrt( cloud->points[i].x*cloud->points[i].x + cloud->points[i].y*cloud->points[i].y + cloud->points[i].z*cloud->points[i].z ) == 0)
@@ -350,40 +342,22 @@ int main(int argc, char * argv[])
         int y = std::floor((cloud->points[i].y-y_min)/shift_len);
         int x = std::floor((cloud->points[i].x-x_min)/shift_len);
 
-        add_cube = true;
-
-        for(int k = 0; k < cube.size(); k++)
-        {
-            if(cube[k].x == x)
-            {
-                if(cube[k].y == y)
-                {
-                    if(cube[k].z == z)
-                    {
-                        cube[k].number++;
-                        add_cube = false;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if(add_cube == true)
-        {
-            temp_cube.number = 1;
-            temp_cube.x = x;
-            temp_cube.y = y;
-            temp_cube.z = z;
-            cube.push_back(temp_cube);
-        }
+        cube.add(x, y, z);
     }
     
     std::cerr << " >> Done: " << tt.toc_string() << " us\n";
     
     ////////////////////////////////////////////////////////////////*/
+    std::cerr << "test...", tt.tic();
+	auto handle0 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 1, 4);
+    auto out0 = handle0.get();
+
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    return 0;
+    ////////////////////////////////////////////////////////////////*/
+    /*///////// custom frames object segmentation //////////////////////////////////////////////////////
     std::cerr << "2...", tt.tic();
     
-	///////
 	auto handle0 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 1, 4);
     auto handle1 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 4, 7);
 	auto handle2 = std::async(std::launch::async, density_cal, shift_len, x_ran, y_ran, z_ran, cube, cloud, 7, 10);
@@ -590,4 +564,142 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void*
                 std::cerr << "Keyboard pressed: " << (int)(event.getKeyCode()) << std::endl;
         }
     }
+}
+
+bool density_cal_part2 (const double &shift_len, const int &cube_len, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
+{
+    //squre_size = shift_len * cube_len;
+    //cube_len = shift_len;
+    std::string file_name = std::string("density_file_size") + std::to_string(int(shift_len * 100 * cube_len)) + "_cube_len0" + std::to_string(int(shift_len * 1000)) + ".csv";
+    double x_max = -10, x_min = 10, y_max = -10, y_min = 10, z_max = -10, z_min = 10;
+    std::vector<std::vector<std::vector<std::vector<pcl::PointXYZRGB>>>> cube;
+    std::vector<Density> density;
+
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    for(int i = 0; i < cloud->points.size(); i++)
+    {
+        if(std::sqrt( cloud->points[i].x*cloud->points[i].x + cloud->points[i].y*cloud->points[i].y + cloud->points[i].z*cloud->points[i].z ) == 0)
+        {
+            continue;
+        }
+        
+        x_max = (x_max < cloud->points[i].x)? cloud->points[i].x : x_max;
+        y_max = (y_max < cloud->points[i].y)? cloud->points[i].y : y_max;
+        z_max = (z_max < cloud->points[i].z)? cloud->points[i].z : z_max;
+        x_min = (x_min > cloud->points[i].x)? cloud->points[i].x : x_min;
+        y_min = (y_min > cloud->points[i].y)? cloud->points[i].y : y_min;
+        z_min = (z_min > cloud->points[i].z)? cloud->points[i].z : z_min;
+        
+    }
+
+    ////////////////////////////////////////////////////////////////*/
+
+
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    for(int i = 0; i < (std::ceil(z_max-z_min))/shift_len; i++ )
+    {
+        std::vector<std::vector<std::vector<pcl::PointXYZRGB>>> y;
+        for(int j = 0; j < (std::ceil(y_max-y_min))/shift_len; j++)
+        {
+            std::vector<std::vector<pcl::PointXYZRGB>> x((std::ceil(x_max-x_min))/shift_len);
+            y.push_back(x); //line
+        }
+        cube.push_back(y);  //plane
+    }
+    
+    ////////////////////////////////////////////////////////////////*/
+
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    for(int i = 0; i < cloud->points.size(); i++)
+    {
+        if(std::sqrt( cloud->points[i].x*cloud->points[i].x + cloud->points[i].y*cloud->points[i].y + cloud->points[i].z*cloud->points[i].z ) == 0)
+        {
+            continue;
+        }
+        int z = std::floor((cloud->points[i].z-z_min)/shift_len);
+        int y = std::floor((cloud->points[i].y-y_min)/shift_len);
+        int x = std::floor((cloud->points[i].x-x_min)/shift_len);
+        cube[z][y][x].push_back(cloud->points[i]);
+    }
+
+    ////////////////////////////////////////////////////////////////*/
+
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+    int cube_size = 0;
+    int x_shift = 0, y_shift = 0, z_shift = 0;
+    Density temp;
+    bool add_density;
+    for(z_shift = 0; z_shift < cube.size() - cube_len; z_shift++)
+    {
+        for(y_shift = 0; y_shift < cube[0].size() - cube_len; y_shift++)
+        {
+            for(x_shift = 0; x_shift < cube[0][0].size() - cube_len; x_shift++)
+            {
+                add_density = true;
+
+                for(int z = 0; z < cube_len; z++)
+                    {
+                        for(int y = 0; y < cube_len; y++)
+                        {
+                            for(int x = 0; x < cube_len; x++)
+                            {
+                                cube_size = cube_size + cube[z_shift + z][y_shift + y][x_shift + x].size();
+                            }
+                        }
+                    }
+
+                for(int i = 0; i < density.size(); i++)
+                {
+                    if(density[i].number == cube_size)
+                    {
+                        density[i].times++;
+                        add_density = false;
+                        break;
+                    }
+                }
+
+                if(add_density == true)
+                {
+                    temp.number = cube_size;
+                    temp.times = 1;
+                    density.push_back(temp);
+                }
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////*/
+
+    /*///////// custom frames object segmentation //////////////////////////////////////////////////////
+    int number = 0;
+    for(int i = 0; i < density.size(); i++)
+    {
+        number = number + (density[i].number * density[i].times);
+    }
+    ////////////////////////////////////////////////////////////////*/
+
+    ////////// custom frames object segmentation //////////////////////////////////////////////////////
+
+
+    struct stat buffer;
+    bool file_exists = (stat (file_name.c_str(), &buffer) == 0)? true : false;
+
+    if (file_exists == false)
+    {
+        ofstream density_file (file_name);
+
+        if (density_file.is_open())
+        {
+            density_file << "number,times\n";
+            for(int i = 0; i < density.size(); i++)
+            {
+                density_file << density[i].number << ',' <<density[i].times << "\n";
+            }
+            density_file.close();
+        }
+        else return false;
+    }
+    else return false;
+
+    ////////////////////////////////////////////////////////////////*/
 }
