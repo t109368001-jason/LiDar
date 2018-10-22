@@ -152,7 +152,7 @@ namespace myFunction
 	bool fileExists(const std::string &filename)
 	{
 		struct stat buffer;
-		return (stat(filename.c_str(), &buffer) == 0)&&(filename == "");
+		return (stat(filename.c_str(), &buffer) == 0);
 	}
 
 	pcl::PolygonMesh stl_to_mesh(std::string filename)
@@ -556,7 +556,7 @@ namespace myFunction
 	}
 
 	template<typename PointT>
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr XYZ_to_XYZRGB(const typename pcl::PointCloud<PointT>::Ptr &cloud_in, const bool gray = true)
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr XYZ_to_XYZRGB(const typename pcl::PointCloud<PointT>::Ptr &cloud_in, const bool gray = false)
 	{
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_out (new pcl::PointCloud<pcl::PointXYZRGB>);
 		double min_Distance = distance<PointT>(getNearOrFarthestPoint<PointT>(cloud_in));
@@ -834,18 +834,18 @@ namespace myFunction
 
 #pragma region showCloud
 
-	void showCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name)
+	void showCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const double &size)
 	{
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 		viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
-		viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
+		viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, size, name);
 	}
 
-	void showCloudWithText(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const std::string text = "")
+	void showCloudWithText(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const double &size, const std::string text = "")
 	{
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 		viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
-		viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
+		viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, size, name);
 		viewer->addText3D(text, cloud->points[0], 0.01, 1.0, 1.0, 1.0, name + "_text");
 	}
 
@@ -853,25 +853,25 @@ namespace myFunction
 
 #pragma region updateCloud
 
-	void updateCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name)
+	void updateCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const double &size)
 	{
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 
 		if( !viewer->updatePointCloud<pcl::PointXYZRGB> (cloud, rgb, name))
 		{
 			viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
-			viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
+			viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, size, name);
 		}
 	}
 
-	void updateCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const std::string text = "")
+	void updateCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const double &size, const std::string text = "")
 	{
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 
 		if( !viewer->updatePointCloud<pcl::PointXYZRGB> (cloud, rgb, name))
 		{
 			viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
-			viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE,1, name);
+			viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, size, name);
 		}
 		viewer->removeText3D(name + "_text");
 		viewer->addText3D(text, cloud->points[0], 1.0, 1.0, 1.0, 1.0, name + "_text");
@@ -1029,12 +1029,84 @@ namespace myFunction
 		}
 	}
 
-	void name_to_color(const std::string &name, uint8_t &r, uint8_t &g, uint8_t &b)
+	bool name_to_color(const std::string &name, uint8_t &r, uint8_t &g, uint8_t &b)
 	{
-		if(name == "car")
+		if(name == "person")
+		{
+			r = 242;
+			g = 181;
+			b = 102;
+		}
+		else if(name == "bicycle")
+		{
+			r = 67;
+			g = 188;
+			b = 37;
+		}
+		else if(name == "car")
 		{
 			r = 0;
+			g = 0;
+			b = 200;
+		}
+		else if(name == "motorbike")
+		{
+			r = 200;
+			g = 0;
+			b = 0;
+		}
+		else if(name == "aeroplane")
+		{
+			r = 255;
 			g = 255;
+			b = 255;
+		}
+		else if(name == "bus")
+		{
+			r = 0;
+			g = 200;
+			b = 200;
+		}
+		else if(name == "train")
+		{
+			r = 200;
+			g = 100;
+			b = 0;
+		}
+		else if(name == "truck")
+		{
+			r = 200;
+			g = 200;
+			b = 0;
+		}
+		else if(name == "boat")
+		{
+			r = 255;
+			g = 255;
+			b = 255;
+		}
+		else if(name == "traffic light")
+		{
+			r = 255;
+			g = 255;
+			b = 255;
+		}
+		else if(name == "fire hydrant")
+		{
+			r = 255;
+			g = 0;
+			b = 0;
+		}
+		else if(name == "stop sign")
+		{
+			r = 255;
+			g = 0;
+			b = 0;
+		}
+		else if(name == "parking meter")
+		{
+			r = 0;
+			g = 0;
 			b = 255;
 		}
 		else if(name == "cup")
@@ -1043,24 +1115,11 @@ namespace myFunction
 			g = 0;
 			b = 255;
 		}
-		else if(name == "person")
-		{
-			r = 255;
-			g = 0;
-			b = 128;
-		}
-		else if(name == "chair")
-		{
-			r = 200;
-			g = 150;
-			b = 0;
-		}
 		else
 		{
-			r = 255;
-			g = 255;
-			b = 255;
+			return false;
 		}
+		return true;
 	}
 	
 	template<typename PointT>

@@ -30,7 +30,7 @@ namespace myFrame
             bool full_cloud_isSet;
             bool objects_cloud_isSet;
 
-            bool set(rs2::frameset &frameset, const std::chrono::milliseconds &startTime, const std::string &bridge_file, const std::string &tmp_dir)
+            bool set(rs2::frameset &frameset, const std::chrono::milliseconds &startTime, const std::string &darknet_txt_path, const std::string &tmp_dir, const bool &postProcessing)
             {
                 auto frameDepth = frameset.get_depth_frame();
                 auto frameColor = frameset.get_color_frame();
@@ -47,39 +47,35 @@ namespace myFrame
 
                     if (frameColor.get_profile().stream_type() == rs2_stream::RS2_STREAM_DEPTH) { frameColor = rs2::colorizer().process(frameColor); }
                     
-                    std::string cwd = std::string(getcwd(NULL, 0)) + '/';
-
-                    std::string abs_tmp_dir = cwd + tmp_dir;
-                    
                     this->file_name = myFunction::millisecondToString(this->time_stamp);
                     
-                    std::string png_file = abs_tmp_dir + this->file_name + ".png";
-                    while(myFunction::fileExists(png_file))
+                    std::string bmp_file = tmp_dir + this->file_name + ".bmp";
+                    while(myFunction::fileExists(bmp_file))
                     {
                         this->time_stamp += std::chrono::milliseconds(33);
                         this->file_name = myFunction::millisecondToString(this->time_stamp);
                     
-                        png_file = abs_tmp_dir + this->file_name + ".png";
+                        bmp_file = tmp_dir + this->file_name + ".bmp";
                     }
-                    stbi_write_png( png_file.c_str(), frameColor.get_width(), frameColor.get_height(), frameColor.get_bytes_per_pixel(), frameColor.get_data(), frameColor.get_stride_in_bytes());
+                    stbi_write_bmp( bmp_file.c_str(), frameColor.get_width(), frameColor.get_height(), frameColor.get_bytes_per_pixel(), frameColor.get_data());//, frameColor.get_stride_in_bytes());
                     
-                    this->detect(png_file, bridge_file);
+                    this->detect(tmp_dir, darknet_txt_path);
 
-                    /////////////////////////////////////////////////////////////////////////
-                    rs2::decimation_filter dec_filter;  // Decimation - reduces depth frame density
-                    rs2::spatial_filter spat_filter;    // Spatial    - edge-preserving spatial smoothing
-                    rs2::temporal_filter temp_filter;   // Temporal   - reduces temporal noise
-                    const std::string disparity_filter_name = "Disparity";
-                    rs2::disparity_transform depth_to_disparity(true);
-                    rs2::disparity_transform disparity_to_depth(false);
+                    if(postProcessing)
+                    {
+                        rs2::decimation_filter dec_filter;  // Decimation - reduces depth frame density
+                        rs2::spatial_filter spat_filter;    // Spatial    - edge-preserving spatial smoothing
+                        rs2::temporal_filter temp_filter;   // Temporal   - reduces temporal noise
+                        const std::string disparity_filter_name = "Disparity";
+                        rs2::disparity_transform depth_to_disparity(true);
+                        rs2::disparity_transform disparity_to_depth(false);
 
-                    frameDepth = dec_filter.process(frameDepth);
-                    frameDepth = depth_to_disparity.process(frameDepth);
-                    frameDepth = spat_filter.process(frameDepth);
-                    frameDepth = temp_filter.process(frameDepth);
-                    frameDepth = disparity_to_depth.process(frameDepth);
-                    ////////////////////////////////////////////////////////////////////////*/
-
+                        frameDepth = dec_filter.process(frameDepth);
+                        frameDepth = depth_to_disparity.process(frameDepth);
+                        frameDepth = spat_filter.process(frameDepth);
+                        frameDepth = temp_filter.process(frameDepth);
+                        frameDepth = disparity_to_depth.process(frameDepth);
+                    }
 
                     rs2::points points;
                     points = rs2::pointcloud().calculate(frameDepth);
@@ -90,30 +86,60 @@ namespace myFrame
                 return true;
             }
             
+            bool detect(const std::string &tmp_dir, const std::string &darknet_txt_path)
+            {
+                std::string cwd = std::string(getcwd(NULL, 0)) + '/';
+
+                std::string bmp_file = cwd + tmp_dir + this->file_name + ".bmp";
+                while(1)
+                {
+                    std::string line;
+                    std::ifstream ifs(darknet_txt_path);
+                    
+                    std::getline(ifs, line);
+                    
+                    ifs.close();
+
+                    if(line == "")
+                    {
+                        std::ofstream ofs(darknet_txt_path);
+                        
+                        ofs << bmp_file + '\n';
+                        ofs.close();
+                        break;
+                    }
+
+                    boost::this_thread::sleep(boost::posix_time::milliseconds(1));
+                }
+            }
+
             bool save(const std::string &data_dir, const bool &compress, const bool &skip_full_cloud, const bool &skip_objects_cloud)
             {
                 std::string file_name = data_dir + this->file_name;
-                std::string txt_file = file_name + ".txt";
-                std::string pcd_file = file_name + ".pcd";
-
+                std::string txt_file = data_dir + this->file_name + ".txt";
+                std::string pcd_file = this->file_name + ".pcd";
+                
                 std::ofstream ofs(txt_file);
                 ofs << "time_stamp=" << this->time_stamp.count() << std::endl;
                 if(compress)
                 {
+                    ofs << "full_cloud=" << pcd_file << std::endl;
                     if((full_cloud_isSet)&&(!skip_full_cloud))
                     {
-                        ofs << "full_cloud=" << pcd_file << std::endl;
-                        pcl::io::savePCDFileBinaryCompressed(pcd_file, *(this->full_cloud));
+                        pcl::io::savePCDFileBinaryCompressed(data_dir + pcd_file, *(this->full_cloud));
                     }
                     if((objects_cloud_isSet)&&(!skip_objects_cloud))
                     {
                         for(int i = 0; i < this->yolo_objects.size(); i++)
                         {
-                            std::stringstream tmp;
-                            tmp << file_name << "_" << i << ".pcd";
-                            ofs << i << '_' << this->yolo_objects[i]->name << "=" << tmp.str() << std::endl;
+                            if(this->yolo_objects[i]->cloud->points.size() > 0)
+                            {
+                                std::stringstream tmp;
+                                tmp << this->file_name << "_" << i << ".pcd";
+                                ofs << i << '_' << this->yolo_objects[i]->name << "=" << tmp.str() << std::endl;
 
-                            pcl::io::savePCDFileBinaryCompressed(tmp.str(), *(this->yolo_objects[i]->cloud));
+                                pcl::io::savePCDFileBinaryCompressed(data_dir + tmp.str(), *(this->yolo_objects[i]->cloud));
+                            }
                         }
                     }
                 }
@@ -122,23 +148,26 @@ namespace myFrame
                     ofs << "full_cloud=" << pcd_file << std::endl;
                     if((full_cloud_isSet)&&(!skip_full_cloud))
                     {
-                        pcl::io::savePCDFileBinary(pcd_file, *(this->full_cloud));
+                        pcl::io::savePCDFileBinary(data_dir + pcd_file, *(this->full_cloud));
                     }
                     if((objects_cloud_isSet)&&(!skip_objects_cloud))
                     {
                         for(int i = 0; i < this->yolo_objects.size(); i++)
                         {
-                            std::stringstream tmp;
-                            tmp << file_name << "_" << i << ".pcd";
-                            ofs << i << '_' << this->yolo_objects[i]->name << "=" << tmp.str() << std::endl;
+                            if(this->yolo_objects[i]->cloud->points.size() > 0)
+                            {
+                                std::stringstream tmp;
+                                tmp << data_dir << this->file_name << "_" << i << ".pcd";
+                                ofs << i << '_' << this->yolo_objects[i]->name << "=" << tmp.str() << std::endl;
 
-                            pcl::io::savePCDFileBinary(tmp.str(), *(this->yolo_objects[i]->cloud));
+                                pcl::io::savePCDFileBinary(tmp.str(), *(this->yolo_objects[i]->cloud));
+                            }
                         }
                     }
                 }
             }
 
-            bool load(const std::string &txt_file, const bool &skip_full_cloud, const bool &skip_objects_cloud)
+            bool load(const std::string &txt_file, const std::string &data_dir, const bool &skip_full_cloud, const bool &skip_objects_cloud)
             {
                 std::ifstream ifs(txt_file);
 
@@ -162,7 +191,7 @@ namespace myFrame
                         if(!skip_full_cloud)
                         {
                             typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
-                            pcl::io::loadPCDFile(strs[1], *cloud);
+                            pcl::io::loadPCDFile(data_dir + strs[1], *cloud);
                             this->full_cloud = cloud;
                         }
                         full_cloud_isSet = !skip_full_cloud;
@@ -176,7 +205,7 @@ namespace myFrame
                             boost::shared_ptr<YoloObject<PointT>> yoloObject(new YoloObject<PointT>);
                             yoloObject->name = strs2[1];
                             typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
-                            pcl::io::loadPCDFile(strs[1], *cloud);
+                            pcl::io::loadPCDFile(data_dir + strs[1], *cloud);
                             yoloObject->cloud = cloud;
                             this->yolo_objects.push_back(yoloObject);
                         }
@@ -221,21 +250,35 @@ namespace myFrame
                     //boost::split(strs,lines[i],boost::is_any_of(" "));
 
                     boost::shared_ptr<YoloObject<PointT>> temp(new YoloObject<PointT>);
-                    temp->name = strs[0];
-                    
-                    object_segmentation.setBound(std::stod(strs[1]), std::stod(strs[2]), std::stod(strs[3])*scale, std::stod(strs[4])*scale);
+                    if(strs.size() == 5)
+                    {
+                        temp->name = strs[0];
+                        
+                        object_segmentation.setBound(std::stod(strs[1]), std::stod(strs[2]), std::stod(strs[3])*scale, std::stod(strs[4])*scale);
+                    }
+                    else
+                    {
+                        for(int i = 0; i < strs.size() - 4; i++)
+                        {
+                            if(temp->name != "") temp->name += ' ';
+                            temp->name += strs[i];
+                        }
+                        object_segmentation.setBound(std::stod(strs[strs.size() - 4]), std::stod(strs[strs.size() - 3]), std::stod(strs[strs.size() - 2])*scale, std::stod(strs[strs.size() - 1])*scale);
+                    }
+
                     temp->cloud = object_segmentation.division(this->full_cloud);
                     
                     uint8_t r;
                     uint8_t g;
                     uint8_t b;
 
-                    myFunction::name_to_color(temp->name, r, g, b);
+                    if(!myFunction::name_to_color(temp->name, r, g, b)) continue;
 
                     temp->cloud = myFunction::fillColor<PointT>(temp->cloud, r, g, b);
                     
                     //boost::shared_ptr<YoloObject<PointT>> temp(new YoloObject<PointT>(strs[0], std::stod(strs[1]), std::stod(strs[2]), std::stod(strs[3]), std::stod(strs[4])));
-                    if(temp->cloud->points.size()) yolo_objects.push_back(temp);
+                    if(temp->cloud->points.size() == 0) continue; 
+                    yolo_objects.push_back(temp);
                     objects_cloud_isSet = true;
                 }
             }
@@ -293,60 +336,35 @@ namespace myFrame
                 return out;
             }
 
-            friend boost::shared_ptr<pcl::visualization::PCLVisualizer> operator<<(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, CustomFrame &obj)
+            void show(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const double &size)
             {
-                for(int i = 0; i < obj.yolo_objects.size(); i++)
+                for(int i = 0; i < this->yolo_objects.size(); i++)
                 {
-                    myFunction::showCloudWithText(viewer, obj.yolo_objects[i]->cloud, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name, obj.yolo_objects[i]->name);
+                    //myFunction::showCloudWithText(viewer, obj.yolo_objects[i]->cloud, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name, obj.yolo_objects[i]->name);
+                    myFunction::showCloud(viewer, this->yolo_objects[i]->cloud, this->file_name + std::to_string(i) + this->yolo_objects[i]->name, size);
                 }
-                return viewer;
             }
-
-            void show(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer)
+            void showFullCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const double &size)
             {
-                myFunction::showCloud(viewer, myFunction::XYZ_to_XYZRGB<PointT>(this->full_cloud, false), this->file_name);
+                myFunction::showCloud(viewer, myFunction::XYZ_to_XYZRGB<PointT>(this->full_cloud, false), this->file_name, size);
             }
 
-            void remove(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer)
+            void removeFullCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer)
             {
                 myFunction::removeCloud(viewer, this->file_name);
             }
 
-            friend boost::shared_ptr<pcl::visualization::PCLVisualizer> operator-=(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, CustomFrame &obj)
+            void remove(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer)
             {
-                for(int i = 0; i < obj.yolo_objects.size(); i++)
+                for(int i = 0; i < this->yolo_objects.size(); i++)
                 {
-                    myFunction::removeCloudWithText(viewer, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name);
+                    //myFunction::removeCloudWithText(viewer, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name);
+                    myFunction::removeCloud(viewer, this->file_name + std::to_string(i) + this->yolo_objects[i]->name);
                 }
-                return viewer;
             }
 
         private:
             std::unordered_map<int, std::unordered_set<unsigned long long>> _framesMap;
-
-            bool detect(const std::string &png_file, const std::string &bridge_file)
-            {
-                while(1)
-                {
-                    std::string line;
-                    std::ifstream ifs(bridge_file);
-                    
-                    std::getline(ifs, line);
-                    
-                    ifs.close();
-
-                    if(line == "")
-                    {
-                        std::ofstream ofs(bridge_file);
-                        
-                        ofs << png_file + '\n';
-                        ofs.close();
-                        break;
-                    }
-
-                    boost::this_thread::sleep(boost::posix_time::milliseconds(1));
-                }
-            }
 
             bool frames_map_get_and_set(rs2_stream streamType, unsigned long long frameNumber)
             {
@@ -370,7 +388,7 @@ namespace myFrame
 #pragma region loadCustomFrames
 
 	template<typename RandomIt, typename PointT>
-	std::vector<boost::shared_ptr<CustomFrame<PointT>>> loadCustomFramesPart(const int &division_num, const bool &skip_full_cloud, const bool &skip_objects_cloud, const  RandomIt &beg, const RandomIt &end)
+	std::vector<boost::shared_ptr<CustomFrame<PointT>>> loadCustomFramesPart(const int &division_num, const std::string &data_dir, const bool &skip_full_cloud, const bool &skip_objects_cloud, const  RandomIt &beg, const RandomIt &end)
 	{
 		auto len = end - beg;
 
@@ -381,15 +399,15 @@ namespace myFrame
 			{
                 boost::shared_ptr<CustomFrame<PointT>> customFrame(new CustomFrame<PointT>);
                 
-                customFrame->load((*it), skip_full_cloud, skip_objects_cloud);
+                customFrame->load((*it), data_dir, skip_full_cloud, skip_objects_cloud);
 
                 customFrames.push_back(customFrame);
 			}
 			return customFrames;
 		}
 		auto mid = beg + len/2;
-		auto handle = std::async(std::launch::async, loadCustomFramesPart<RandomIt, PointT>, division_num, skip_full_cloud, skip_objects_cloud, beg, mid);
-		auto out1 = loadCustomFramesPart<RandomIt, PointT>(division_num, skip_full_cloud, skip_objects_cloud, mid, end);
+		auto handle = std::async(std::launch::async, loadCustomFramesPart<RandomIt, PointT>, division_num, data_dir, skip_full_cloud, skip_objects_cloud, beg, mid);
+		auto out1 = loadCustomFramesPart<RandomIt, PointT>(division_num, data_dir, skip_full_cloud, skip_objects_cloud, mid, end);
 		auto out = handle.get();
 
 		std::copy(out1.begin(), out1.end(), std::back_inserter(out));
@@ -412,7 +430,7 @@ namespace myFrame
         
         int division_num = myFunction::getDivNum<size_t, size_t>(files.size());
 
-        customFrames = loadCustomFramesPart<decltype(files.begin()), PointT>(division_num, skip_full_cloud, skip_objects_cloud, files.begin(), files.end());
+        customFrames = loadCustomFramesPart<decltype(files.begin()), PointT>(division_num, data_dir, skip_full_cloud, skip_objects_cloud, files.begin(), files.end());
     }
     
 #pragma endregion loadCustomFrames
@@ -456,7 +474,7 @@ namespace myFrame
 #pragma region getCustomFrames
 
 	template<typename PointT>
-	bool getCustomFrames(std::string &bagFile, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, std::string &bridge_file, std::string &tmp_dir, int number = std::numeric_limits<int>::max())
+	bool getCustomFrames(std::string &bagFile, std::vector<boost::shared_ptr<CustomFrame<PointT>>> &customFrames, std::string &darknet_txt_path, std::string &tmp_dir, const bool postProcessing = true, int number = std::numeric_limits<int>::max())
 	{
         rs2::config cfg;
         auto pipe = std::make_shared<rs2::pipeline>();
@@ -494,7 +512,7 @@ namespace myFrame
 			
 			boost::shared_ptr<CustomFrame<PointT>> customFrame(new CustomFrame<PointT>);
 
-			if(customFrame->set(frameset, bagStartTime, bridge_file, tmp_dir))
+			if(customFrame->set(frameset, bagStartTime, darknet_txt_path, tmp_dir, postProcessing))
 			{
 				customFrames.push_back(customFrame);
                 finished++;
@@ -573,7 +591,7 @@ namespace myFrame
 
 #pragma endregion backgroundSegmentationCustomFrameYoloObjects
 
-#pragma region backgroundSegmentationCustomFrames
+#pragma region objectSegmentationCustomFrames
 
 	template<typename RandomIt, typename PointT>
 	int objectSegmentationCustomFramesPart(const int &division_num, const std::string &tmp_dir, myClass::objectSegmentation<PointT> object_segmentation, const double &scale, const RandomIt &beg, const RandomIt &end)
@@ -605,7 +623,7 @@ namespace myFrame
         int count = objectSegmentationCustomFramesPart<decltype(customFrames.begin()), PointT>(division_num, tmp_dir, object_segmentation, scale, customFrames.begin(), customFrames.end());
     }
 
-#pragma endregion backgroundSegmentationCustomFrames
+#pragma endregion objectSegmentationCustomFrames
 
 #pragma region noiseRemovalCustomFrames
 
