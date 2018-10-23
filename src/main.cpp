@@ -16,11 +16,19 @@ typedef pcl::PointXYZRGB PointT;
 
 int fps = 30;
 bool viewer_pause = false;
+bool show_full_cloud = false;
+bool show_full_cloud_status = false;
 bool show_background = false;
 bool show_background_status = false;
 bool save_pcd = false;
 bool real_time = true;
-double point_size = 1.0;
+bool start_time_fix = true;
+
+double play_speed = 1.0;
+double point_size = 2.0;
+const double max_play_speed = 10.0;
+const double min_play_speed = 0.25;
+const double play_speed_step = 0.25;
 
 boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
 std::string cwd = std::string(getcwd(NULL, 0)) + '/';
@@ -39,18 +47,18 @@ args::Group requirementGroup(parser, "This group is all required:", args::Group:
             args::ValueFlag<std::string> inputOnlyObjectCloud(inputDataGroup, "inputOnlyObjectCloud", "input only objects cloud", {"ioc", "input_object_cloud"});
 args::Group postProcessingGroup(parser, "This group is dont care:", args::Group::Validators::DontCare);
     args::ValueFlag<double> objectSeg(postProcessingGroup, "objectSeg", "Enable object segmentation", {"os", "object_segmentation"});
-    args::Flag noiseRemoval(postProcessingGroup, "noiseRemoval", "Enable noise removal", {"nr", "noise_removal"});
+    args::ValueFlagList<double> noiseRemoval(postProcessingGroup, "noiseRemoval", "Enable noise removal", {"nr", "noise_removal"});
     args::Flag postProcessing(postProcessingGroup, "postProcessing", "Enable post processing", {"pp", "post_processing"});
     args::Group backgroundSegGroup(postProcessingGroup, "This group is all or none:", args::Group::Validators::AllOrNone);
         args::ValueFlag<double> backgroundSeg(backgroundSegGroup, "backgroundSeg", "Enable background segmentation", {"bs", "background_segmentation"});
         args::ValueFlag<std::string> inputBagBackground(backgroundSegGroup, "inputBagBackground", "input background cloud path", {"bg", "background"});
 args::Group outputGroup(parser, "This group is at most one:", args::Group::Validators::AtMostOne);
-    args::ValueFlag<std::string> outputAll(outputGroup, "outputAll", "output all cloud", {"oa", "output_all"});
-    args::ValueFlag<std::string> outputOnlyObjectCloud(outputGroup, "outputOnlyObjectCloud", "output only object cloud", {"ooc", "output_object_cloud"});
-    args::ValueFlag<std::string> outputOnlyFullCloud(outputGroup, "outputOnlyFullCloud", "output only full cloud", {"ofc", "output_full_cloud"});
+    args::Flag outputAll(outputGroup, "outputAll", "output all cloud", {"oa", "output_all"});
+    args::Flag outputOnlyObjectCloud(outputGroup, "outputOnlyObjectCloud", "output only object cloud", {"ooc", "output_object_cloud"});
+    args::Flag outputOnlyFullCloud(outputGroup, "outputOnlyFullCloud", "output only full cloud", {"ofc", "output_full_cloud"});
 args::Group optionGroup(parser, "This group is at most one:", args::Group::Validators::DontCare);
     args::Flag pauseAtStart(optionGroup, "pauseAtStart", "pause at start", {"pas", "pause_at_start"});
-    args::ValueFlag<std::string> saveAsVideo(optionGroup, "saveAsVideo", "save as video", {"sav", "save_as_video"});
+    args::Flag saveAsVideo(optionGroup, "saveAsVideo", "save as video", {"sav", "save_as_video"});
     args::ValueFlag<double> test(optionGroup, "test", "test", {"test"});
 
 void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing);
@@ -75,21 +83,18 @@ void pcl_viewer()
     std::string background_cloud_path = args::get(inputBagBackground);
 
     std::string output_path = "";
-    std::string tmp_path = "tmp/";
+    std::string txt_path = output_path + "txt/";
 
     bool input_full_cloud = (inputOnlyFullCloud|inputAll)&(!inputOnlyObjectCloud);
     bool input_objects_cloud = (inputOnlyObjectCloud|inputAll)&(!inputOnlyFullCloud);
     bool output_full_cloud = (outputOnlyFullCloud|outputAll)&(!outputOnlyObjectCloud);
     bool output_objects_cloud = (outputOnlyObjectCloud|outputAll)&(!outputOnlyFullCloud);
-    bool show_full_cloud = (inputOnlyFullCloud & (!objectSeg));
+    bool show_full_cloud_status = (inputOnlyFullCloud & (!objectSeg));
 
     viewer_pause = args::get(pauseAtStart);
-
-    std::cerr << args::get(test) << std::endl;
-    std::cerr << args::get(test) << std::endl;
-    std::cerr << args::get(test) << std::endl;
     
     std::stringstream auto_name;
+
 
 #pragma region check_logic ///////////////////////////////////////
     if(!(input_full_cloud||inputBag))
@@ -124,18 +129,18 @@ void pcl_viewer()
 #pragma region check_file_and_path ///////////////////////////////////////
     if(outputOnlyObjectCloud)
     {
-        output_path = args::get(outputOnlyObjectCloud) + '/';
-        tmp_path = output_path + "/tmp/";
+        output_path = "data/";
+        txt_path = output_path + "/txt/";
     }
     else if(outputOnlyFullCloud)
     {
-        output_path = args::get(outputOnlyFullCloud) + '/';
-        tmp_path = output_path + "/tmp/";
+        output_path = "data/";
+        txt_path = output_path + "/txt/";
     }
     else if(outputAll)
     {
-        output_path = args::get(outputAll) + '/';
-        tmp_path = output_path + "/tmp/";
+        output_path = "data/";
+        txt_path = output_path + "/txt/";
     }
     else
     {
@@ -146,9 +151,9 @@ void pcl_viewer()
     {
         mkdir(output_path.c_str(), 0777);      //make directory data_dir and set  permission to 777
     }
-    if(!myFunction::fileExists(tmp_path))
+    if(!myFunction::fileExists(txt_path))
     {
-        mkdir(tmp_path.c_str(), 0777);       //make directory tmp_dir and set permission to 777
+        mkdir(txt_path.c_str(), 0777);       //make directory txt_dir and set permission to 777
     }
 
     if(inputBag)
@@ -190,8 +195,7 @@ void pcl_viewer()
         }
         if(output_path == "")
         {
-            output_path = input_path;
-            tmp_path = output_path + "/tmp/";
+            txt_path = input_path + "/txt/";
         }
     }
 
@@ -221,12 +225,12 @@ void pcl_viewer()
     std::cerr << "Loading...", tt.tic();
     if(inputBag)
     {  
-        boost::filesystem::path path_to_remove(tmp_path);
+        boost::filesystem::path path_to_remove(txt_path);
         for (boost::filesystem::directory_iterator end_dir_it, it(path_to_remove); it!=end_dir_it; ++it)
         {
             boost::filesystem::remove_all(it->path());
         }
-        myFrame::getCustomFrames(bag_path, customFrames, darknet_txt_path, tmp_path, postProcessing);
+        myFrame::getCustomFrames(bag_path, customFrames, darknet_txt_path, txt_path, postProcessing);
         auto_name << "[if=";
         auto_name << boost::filesystem::path{bag_path}.filename().stem().string();
         auto_name << "]";
@@ -234,13 +238,24 @@ void pcl_viewer()
     }
     else 
     {
+        if((output_path+"/txt/") != (input_path+"/txt/"))
+        {
+            std::stringstream command;
+            command << "cp ";
+            command << input_path;
+            command << "/txt/ ";
+            command << output_path;
+            command << " -r";
+            system(command.str().c_str());
+        }
+
         myFrame::loadCustomFrames(input_path, customFrames, !input_full_cloud, !input_objects_cloud);
-        std::string temp = input_path.substr(input_path.find('=') + 1, input_path.find(']') - input_path.find('=') - 1);
-        std::string pp = input_path.substr(input_path.find('[', 1) + 1, input_path.find(']', 1) - input_path.find('[', 1) - 1);
+        std::string temp = input_path.substr(input_path.find("if") + 3, 15);
+        std::string pp = input_path.substr(input_path.find("pp"), 2);
         auto_name << "[if=";
         auto_name << temp;
         auto_name << "]";
-        auto_name << pp;
+        if(pp == "pp") auto_name << "[" << pp << "]";
     }
     if(inputBagBackground)
     {
@@ -270,7 +285,7 @@ void pcl_viewer()
         object_segmentation.setCameraParameter("UL", w, h, 89.7974 * M_PI / 180.0, 69.4 * M_PI / 180.0, -0.03);
     
         double scale = args::get(objectSeg);
-        myFrame::objectSegmentationCustomFrames(tmp_path, object_segmentation, customFrames, scale);
+        myFrame::objectSegmentationCustomFrames(txt_path, object_segmentation, customFrames, scale);
 
         std::cerr << " >> Done: " << tt.toc_string() << " us\n";
         std::cerr << "Total frame : " << customFrames.size();
@@ -308,12 +323,9 @@ void pcl_viewer()
     {
         double percentP;
         double StddevMulThresh;
-        cout << "Please input noise removal percentP: "; 
-        cin >> percentP;
-        if(percentP > 1.0) percentP = 1.0;
-        if(percentP < 0.0) percentP = 0.0;
-        cout << "Please input noise removal StddevMulThresh: "; 
-        cin >> StddevMulThresh;
+        auto pp = args::get(noiseRemoval);
+        percentP = pp[0];
+        StddevMulThresh = pp[1];
 
         std::cerr << "Custom frames noise removal...", tt.tic();
 
@@ -341,8 +353,30 @@ void pcl_viewer()
         std::cerr << "Total frame : " << customFrames.size();
         std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
         std::cerr << '\n';
+        if((myFunction::fileExists(auto_name.str()))&&(auto_name.str() != input_path))
+        {
+            boost::filesystem::path path_to_remove(auto_name.str());
+            for (boost::filesystem::directory_iterator end_dir_it, it(path_to_remove); it!=end_dir_it; ++it)
+            {
+                boost::filesystem::remove_all(it->path());
+            }
+        }
+        std::stringstream command;
+        command << "mv data/ " << auto_name.str();
+        system(command.str().c_str());
+        output_path = auto_name.str();
+        std::cerr << "save data to : " << auto_name.str() << std::endl;
     }
-    std::cerr << "save data to : " << auto_name.str() << std::endl;
+    if(myFunction::fileExists(txt_path))
+    {
+        for (boost::filesystem::directory_entry & file : boost::filesystem::directory_iterator(txt_path))
+        {
+            if(file.path().extension().string() != ".txt")
+            {
+                boost::filesystem::remove(file);
+            }
+        }
+    }
     ////////////////////////////////////////////////////////////////*/
 #pragma endregion save
 
@@ -356,109 +390,105 @@ void pcl_viewer()
     viewer->setCameraPosition( 0.0, 0.0, -0.0000001, 0.0, -1.0, 0.0, 0 );
     viewer->setCameraFieldOfView(60.0 * M_PI / 180.0);
 
+#pragma region save_video ///////////////////////////////////////
     if(saveAsVideo)
     {
-        std::string video_path = "video/";
-        if(!myFunction::fileExists(video_path))
-        {
-            mkdir(video_path.c_str(), 0777);       //make directory tmp_dir and set permission to 777
-        }
+        std::cerr << "Video saving...", tt.tic();
+        std::string video_path = output_path + "/video/";
+        mkdir(video_path.c_str(), 0777);
+        video_path = video_path + auto_name.str() + '/';
+        mkdir(video_path.c_str(), 0777);
+
         for(int i = 0; i < customFrames.size(); i++)
         {
-            if(show_full_cloud)
-            {
-                customFrames[i]->showFullCloud(viewer, point_size);
-            }
-            else
-            {
-                customFrames[i]->show(viewer, point_size);
-            }
+            customFrames[i]->show(viewer, point_size, show_full_cloud_status);
+                
             std::stringstream temp;
             temp << video_path << "video" << i << ".png";
             viewer->saveScreenshot(temp.str());
-            if(show_full_cloud)
-            {
-                customFrames[i]->removeFullCloud(viewer);
-            }
-            else
-            {
-                customFrames[i]->remove(viewer);
-            }
+            
+            customFrames[i]->remove(viewer, show_full_cloud_status);
         }
         std::stringstream command;
-        command << "ffmpeg -r 1/" << 1.0/30.0 << " -i " << video_path << "video%d.png -c:v mpeg4 -q:v 4 " << args::get(saveAsVideo) << ".mp4";
+        command << "ffmpeg -r 1/" << 1.0/30.0 << " -i " << video_path << "video%d.png -c:v mpeg4 -q:v 4 " << output_path + "/video/" + auto_name.str() << ".mp4";
         system(command.str().c_str());
     }
+    ////////////////////////////////////////////////////////////////*/
+#pragma endregion save_video
+
     int play_count = 0;
     std::chrono::milliseconds start_time_stamp = customFrames[0]->time_stamp;
     std::chrono::milliseconds next_time_stamp;
     std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
 
-    if(show_full_cloud)
-    {
-        customFrames[play_count]->showFullCloud(viewer, point_size);
-    }
-    else
-    {
-        customFrames[play_count]->show(viewer, point_size);
-    }
+    customFrames[play_count]->show(viewer, point_size, show_full_cloud_status);
+        
     next_time_stamp = customFrames[(play_count + 1)% customFrames.size()]->time_stamp;
     
     viewer->spinOnce();
+
+    show_full_cloud = show_full_cloud_status;
     
     while( !viewer->wasStopped())
     {
         viewer->spinOnce();
+        if(start_time_fix)
+        {
+            start_time = std::chrono::steady_clock::now();
+            start_time_stamp = customFrames[play_count]->time_stamp;
+            start_time_fix = false;
+        }
         if(!viewer_pause)
         {
-            if(save_pcd)
-            {
-                std::string back_file = "background/" + customFrames[play_count]->file_name + ".pcd";
-                if(!myFunction::fileExists("background/"))
-                {
-                    mkdir("background/", 0777);       //make directory tmp_dir and set permission to 777
-                }
-                pcl::io::savePCDFileBinaryCompressed(back_file, *(customFrames[play_count]->full_cloud));
-                std::cerr << "background saved : " << back_file << std::endl;
-                save_pcd = false;
-            }
-            if(show_background != show_background_status)
-            {
-                if(show_background)
-                {
-                    myFunction::showCloud(viewer, backgroundCloud_view, "backgroundCloud_view", point_size);
-                }
-                else
-                {
-                    myFunction::removeCloud(viewer, "backgroundCloud_view");
-                }
-                show_background_status = show_background;
-            }
-            bool stay = ((std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count() < (next_time_stamp-start_time_stamp).count()) && real_time);
+            bool stay = (((std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count()*play_speed) < (next_time_stamp-start_time_stamp).count()) && real_time);
             if(stay) continue;
-            if(show_full_cloud)
+
+            customFrames[play_count]->remove(viewer, show_full_cloud_status);
+            show_full_cloud_status = show_full_cloud;
+            play_count = (play_count + 1)% customFrames.size();
+            customFrames[play_count]->show(viewer, point_size, show_full_cloud_status);
+
+            if((play_count + 1)% customFrames.size() == 0)
             {
-                customFrames[play_count]->removeFullCloud(viewer);
-                play_count = (play_count + 1)% customFrames.size();
-                customFrames[play_count]->showFullCloud(viewer, point_size);
+                next_time_stamp += std::chrono::milliseconds(33);
             }
             else
             {
-                customFrames[play_count]->remove(viewer);
-                play_count = (play_count + 1)% customFrames.size();
-                customFrames[play_count]->show(viewer, point_size);
+                next_time_stamp = customFrames[(play_count + 1)% customFrames.size()]->time_stamp;
             }
-            next_time_stamp = customFrames[(play_count + 1)% customFrames.size()]->time_stamp;
             if(play_count == 0)
             {
-                start_time_stamp = customFrames[0]->time_stamp;
                 start_time = std::chrono::steady_clock::now();
+                start_time_stamp = customFrames[0]->time_stamp;
             }
         }
         else
         {
             start_time = std::chrono::steady_clock::now();
             start_time_stamp = customFrames[play_count]->time_stamp;
+        }
+        if(save_pcd)
+        {
+            std::string back_file = "background/" + customFrames[play_count]->file_name + ".pcd";
+            if(!myFunction::fileExists("background/"))
+            {
+                mkdir("background/", 0777);
+            }
+            pcl::io::savePCDFileBinaryCompressed(back_file, *(customFrames[play_count]->full_cloud));
+            std::cerr << "background saved : " << back_file << std::endl;
+            save_pcd = false;
+        }
+        if(show_background != show_background_status)
+        {
+            if(show_background)
+            {
+                myFunction::showCloud(viewer, backgroundCloud_view, "backgroundCloud_view", point_size);
+            }
+            else
+            {
+                myFunction::removeCloud(viewer, "backgroundCloud_view");
+            }
+            show_background_status = show_background;
         }
         //boost::this_thread::sleep(boost::posix_time::milliseconds(16));
     }
@@ -616,39 +646,69 @@ int main(int argc, char * argv[])
 
 void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing)
 {
-    if((event.getKeySym() == "b")&&(event.keyDown())&&(event.isCtrlPressed()))
+    if(event.isCtrlPressed())
     {
-        if(inputBagBackground)
+        if((event.getKeySym() == "b")&&(event.keyDown()))
         {
-            show_background = !show_background;
-            std::cerr << "Background: " << ((show_background == true)? "ON" : "OFF") << std::endl;
+            if(inputBagBackground)
+            {
+                show_background = !show_background;
+                std::cerr << "Background: " << ((show_background == true)? "ON" : "OFF") << std::endl;
+            }
+        }
+        else if((event.getKeySym() == "p")&&(event.keyDown()))
+        {
+            save_pcd = true;
+        }
+        else if((event.getKeySym() == "f")&&(event.keyDown()))
+        {
+            if(!(inputOnlyFullCloud & (!objectSeg)))
+            {
+                show_full_cloud = !show_full_cloud;
+                std::cerr << "show_full_cloud: " << ((show_full_cloud == true)? "ON" : "OFF") << std::endl;
+            }
+        }
+        else if((event.getKeySym() == "space")&&(event.keyDown()))
+        {
+            real_time = !real_time;
+            std::cerr << "real_time: " << ((real_time == true)? "ON" : "OFF") << std::endl;
+        }
+        else if((event.getKeySym() == "KP_Add")&&(event.keyDown()))
+        {
+            if(play_speed < max_play_speed) play_speed += play_speed_step;
+            start_time_fix = true;
+            std::cerr << "play_speed: " << play_speed << std::endl;
+        }
+        else if((event.getKeySym() == "KP_Subtract")&&(event.keyDown()))
+        {
+            if(play_speed > min_play_speed) play_speed -= play_speed_step;
+            start_time_fix = true;
+            std::cerr << "play_speed: " << play_speed << std::endl;
+        }
+        else if(event.keyDown())
+        {
+            std::cerr << "Keyboard pressed: \" Ctrl + " << event.getKeySym() << "\"" << std::endl;
         }
     }
-    else if((event.getKeySym() == "p")&&(event.keyDown())&&(event.isCtrlPressed()))
+    else
     {
-        save_pcd = true;
-    }
-    else if((event.getKeySym() == "space")&&(event.keyDown())&&(event.isCtrlPressed()))
-    {
-        real_time = !real_time;
-        std::cerr << "real_time: " << ((real_time == true)? "ON" : "OFF") << std::endl;
-    }
-    else if((event.getKeySym() == "space")&&(event.keyDown()))
-    {
-        viewer_pause = !viewer_pause;
-        std::cerr << "viewer_pause: " << ((viewer_pause == true)? "ON" : "OFF") << std::endl;
-    }
-    else if((event.getKeySym() == "KP_Add")&&(event.keyDown()))
-    {
-        if(point_size < 10.0) point_size += 0.5;
-    }
-    else if((event.getKeySym() == "KP_Subtract")&&(event.keyDown()))
-    {
-        if(point_size > 1.0) point_size -= 0.5;
-    }
-    else if(event.keyDown())
-    {
-        std::cerr << "Keyboard pressed: \"" << event.getKeySym() << "\"" << std::endl;
+        if((event.getKeySym() == "space")&&(event.keyDown()))
+        {
+            viewer_pause = !viewer_pause;
+            std::cerr << "viewer_pause: " << ((viewer_pause == true)? "ON" : "OFF") << std::endl;
+        }
+        else if((event.getKeySym() == "KP_Add")&&(event.keyDown()))
+        {
+            if(point_size < 10.0) point_size += 0.5;
+        }
+        else if((event.getKeySym() == "KP_Subtract")&&(event.keyDown()))
+        {
+            if(point_size > 1.0) point_size -= 0.5;
+        }
+        else if(event.keyDown())
+        {
+            std::cerr << "Keyboard pressed: \"" << event.getKeySym() << "\"" << std::endl;
+        }
     }
 }
 

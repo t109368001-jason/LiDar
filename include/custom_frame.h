@@ -336,30 +336,35 @@ namespace myFrame
                 return out;
             }
 
-            void show(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const double &size)
+            void show(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const double &size, const bool &show_full_cloud)
             {
-                for(int i = 0; i < this->yolo_objects.size(); i++)
+                if(show_full_cloud)
                 {
-                    //myFunction::showCloudWithText(viewer, obj.yolo_objects[i]->cloud, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name, obj.yolo_objects[i]->name);
-                    myFunction::showCloud(viewer, this->yolo_objects[i]->cloud, this->file_name + std::to_string(i) + this->yolo_objects[i]->name, size);
+                    myFunction::showCloud(viewer, myFunction::XYZ_to_XYZRGB<PointT>(this->full_cloud, false), this->file_name, size);
+                }
+                else
+                {
+                    for(int i = 0; i < this->yolo_objects.size(); i++)
+                    {
+                        //myFunction::showCloudWithText(viewer, obj.yolo_objects[i]->cloud, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name, obj.yolo_objects[i]->name);
+                        myFunction::showCloud(viewer, this->yolo_objects[i]->cloud, this->file_name + std::to_string(i) + this->yolo_objects[i]->name, size);
+                    }
                 }
             }
-            void showFullCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const double &size)
-            {
-                myFunction::showCloud(viewer, myFunction::XYZ_to_XYZRGB<PointT>(this->full_cloud, false), this->file_name, size);
-            }
 
-            void removeFullCloud(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer)
+            void remove(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const bool &show_full_cloud)
             {
-                myFunction::removeCloud(viewer, this->file_name);
-            }
-
-            void remove(boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer)
-            {
-                for(int i = 0; i < this->yolo_objects.size(); i++)
+                if(show_full_cloud)
                 {
-                    //myFunction::removeCloudWithText(viewer, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name);
-                    myFunction::removeCloud(viewer, this->file_name + std::to_string(i) + this->yolo_objects[i]->name);
+                    myFunction::removeCloud(viewer, this->file_name);
+                }
+                else
+                {
+                    for(int i = 0; i < this->yolo_objects.size(); i++)
+                    {
+                        //myFunction::removeCloudWithText(viewer, obj.file_name + std::to_string(i) + obj.yolo_objects[i]->name);
+                        myFunction::removeCloud(viewer, this->file_name + std::to_string(i) + this->yolo_objects[i]->name);
+                    }
                 }
             }
 
