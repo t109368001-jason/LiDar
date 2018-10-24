@@ -14,6 +14,31 @@ namespace myFrame
         public:
             std::string name;
             typename pcl::PointCloud<PointT>::Ptr cloud;
+            typename pcl::PointCloud<PointT>::Ptr cloud2;
+            int num;
+
+            YoloObject()
+            {
+                this->num = 1;
+            }
+            void swap()
+            {
+		        typename pcl::PointCloud<PointT>::Ptr temp{this->cloud};
+                this->cloud.reset(this->cloud2);
+                this->cloud2.reset(temp);
+                this->num = (this->num%2) + 1;
+            }
+            void swap(const int &i)
+            {
+                if(((i == 1)||(i == 2))&&(this->num != i))
+                {
+                    this->swap();
+                }
+            }
+            void sync()
+            {
+                this->cloud2.reset(this->cloud);
+            }
     };
 
 #pragma region CustomFrame

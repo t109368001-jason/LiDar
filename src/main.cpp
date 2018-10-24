@@ -23,6 +23,7 @@ bool show_background_status = false;
 bool save_pcd = false;
 bool real_time = true;
 bool start_time_fix = true;
+bool switch_cloud = false;
 
 double play_speed = 1.0;
 double point_size = 2.0;
@@ -238,7 +239,7 @@ void pcl_viewer()
     }
     else 
     {
-        if((output_path+"/txt/") != (input_path+"/txt/"))
+        if(((output_path+"/txt/") != (input_path+"/txt/"))&&(outputAll||outputOnlyFullCloud||outputOnlyObjectCloud))
         {
             std::stringstream command;
             command << "cp ";
@@ -319,6 +320,8 @@ void pcl_viewer()
         auto_name << resolution;
         auto_name << "]";
     }
+
+
     if(noiseRemoval)
     {
         double percentP;
@@ -328,6 +331,15 @@ void pcl_viewer()
         StddevMulThresh = pp[1];
 
         std::cerr << "Custom frames noise removal...", tt.tic();
+
+        for(int i = 0; i < customFrames.size(); i++)
+        {
+            for(int j = 0; j < customFrames[i]->yolo_objects.size(); j++)
+            {
+                customFrames[i]->yolo_objects[j]->sync();
+                customFrames[i]->yolo_objects[j]->swap();
+            }
+        }
 
         myFrame::noiseRemovalCustomFrameYoloObjects(customFrames, percentP, StddevMulThresh);
 
@@ -437,6 +449,17 @@ void pcl_viewer()
             start_time = std::chrono::steady_clock::now();
             start_time_stamp = customFrames[play_count]->time_stamp;
             start_time_fix = false;
+        }
+        if(switch_cloud)
+        {
+            for(int i = 0; i < customFrames.size(); i++)
+            {
+                for(int j = 0; j < customFrames[i]->yolo_objects.size(); j++)
+                {
+                    customFrames[i]->yolo_objects[j]->swap();
+                }
+            }
+            switch_cloud = false;
         }
         if(!viewer_pause)
         {
@@ -666,6 +689,14 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void*
             {
                 show_full_cloud = !show_full_cloud;
                 std::cerr << "show_full_cloud: " << ((show_full_cloud == true)? "ON" : "OFF") << std::endl;
+            }
+        }
+        else if((event.getKeySym() == "n")&&(event.keyDown()))
+        {
+            if(noiseRemoval)
+            {
+                switch_cloud = true;
+                std::cerr << "switch_cloud" << std::endl;
             }
         }
         else if((event.getKeySym() == "space")&&(event.keyDown()))
