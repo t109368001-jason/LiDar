@@ -277,81 +277,84 @@ void pcl_viewer()
 #pragma endregion load
 
 #pragma region post_processing ///////////////////////////////////////
-    if(objectSeg && (inputOnlyFullCloud||inputBag))
-    {    
-        std::cerr << "Custom frames object segmentation...", tt.tic();
-
-        double w = 1280.0;
-        double h = 720.0;
-        object_segmentation.setCameraParameter("UL", w, h, 89.7974 * M_PI / 180.0, 69.4 * M_PI / 180.0, -0.03);
-    
-        double scale = args::get(objectSeg);
-        myFrame::objectSegmentationCustomFrames(txt_path, object_segmentation, customFrames, scale);
-
-        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-        std::cerr << "Total frame : " << customFrames.size();
-        std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
-        std::cerr << '\n';
-        auto_name << "[os=";
-        auto_name << scale;
-        auto_name << "]";
-    }
-    if(backgroundSeg)
+    if(inputOnlyFullCloud||inputBag)
     {
-        std::cerr << "Custom frames background segmentation...", tt.tic();
+        if(objectSeg)
+        {    
+            std::cerr << "Custom frames object segmentation...", tt.tic();
 
-        double resolution = args::get(backgroundSeg);
+            double w = 1280.0;
+            double h = 720.0;
+            object_segmentation.setCameraParameter("UL", w, h, 89.7974 * M_PI / 180.0, 69.4 * M_PI / 180.0, -0.03);
+        
+            double scale = args::get(objectSeg);
+            myFrame::objectSegmentationCustomFrames(txt_path, object_segmentation, customFrames, scale);
 
-        background_segmentation.setBackground(backgroundCloud, resolution);
-
-        if(objectSeg || input_objects_cloud)
-        {
-            myFrame::backgroundSegmentationCustomFrameYoloObjects(background_segmentation, customFrames);
+            std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+            std::cerr << "Total frame : " << customFrames.size();
+            std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+            std::cerr << '\n';
+            auto_name << "[os=";
+            auto_name << scale;
+            auto_name << "]";
         }
-        else
+        if(backgroundSeg)
         {
-            myFrame::backgroundSegmentationCustomFrames(background_segmentation, customFrames);
-        }
-        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-        std::cerr << "Total frame : " << customFrames.size();
-        std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
-        std::cerr << '\n';
-        auto_name << "[bs=";
-        auto_name << resolution;
-        auto_name << "]";
-    }
+            std::cerr << "Custom frames background segmentation...", tt.tic();
 
+            double resolution = args::get(backgroundSeg);
 
-    if(noiseRemoval)
-    {
-        double percentP;
-        double StddevMulThresh;
-        auto pp = args::get(noiseRemoval);
-        percentP = pp[0];
-        StddevMulThresh = pp[1];
+            background_segmentation.setBackground(backgroundCloud, resolution);
 
-        std::cerr << "Custom frames noise removal...", tt.tic();
-
-        for(int i = 0; i < customFrames.size(); i++)
-        {
-            for(int j = 0; j < customFrames[i]->yolo_objects.size(); j++)
+            if(objectSeg || input_objects_cloud)
             {
-                customFrames[i]->yolo_objects[j]->sync();
-                customFrames[i]->yolo_objects[j]->swap();
+                myFrame::backgroundSegmentationCustomFrameYoloObjects(background_segmentation, customFrames);
             }
+            else
+            {
+                myFrame::backgroundSegmentationCustomFrames(background_segmentation, customFrames);
+            }
+            std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+            std::cerr << "Total frame : " << customFrames.size();
+            std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+            std::cerr << '\n';
+            auto_name << "[bs=";
+            auto_name << resolution;
+            auto_name << "]";
         }
 
-        myFrame::noiseRemovalCustomFrameYoloObjects(customFrames, percentP, StddevMulThresh);
 
-        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-        std::cerr << "Total frame : " << customFrames.size();
-        std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
-        std::cerr << '\n';
-        auto_name << "[nr=";
-        auto_name << percentP;
-        auto_name << "_";
-        auto_name << StddevMulThresh;
-        auto_name << "]";
+        if(noiseRemoval)
+        {
+            double percentP;
+            double StddevMulThresh;
+            auto pp = args::get(noiseRemoval);
+            percentP = pp[0];
+            StddevMulThresh = pp[1];
+
+            std::cerr << "Custom frames noise removal...", tt.tic();
+
+            for(int i = 0; i < customFrames.size(); i++)
+            {
+                for(int j = 0; j < customFrames[i]->yolo_objects.size(); j++)
+                {
+                    customFrames[i]->yolo_objects[j]->sync();
+                    customFrames[i]->yolo_objects[j]->swap();
+                }
+            }
+
+            myFrame::noiseRemovalCustomFrameYoloObjects(customFrames, percentP, StddevMulThresh);
+
+            std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+            std::cerr << "Total frame : " << customFrames.size();
+            std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+            std::cerr << '\n';
+            auto_name << "[nr=";
+            auto_name << percentP;
+            auto_name << "_";
+            auto_name << StddevMulThresh;
+            auto_name << "]";
+        }
     }
     ////////////////////////////////////////////////////////////////*/
 #pragma endregion post_processing
@@ -693,11 +696,8 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void*
         }
         else if((event.getKeySym() == "n")&&(event.keyDown()))
         {
-            if(noiseRemoval)
-            {
-                switch_cloud = true;
-                std::cerr << "switch_cloud" << std::endl;
-            }
+            switch_cloud = true;
+            std::cerr << "switch_cloud" << std::endl;
         }
         else if((event.getKeySym() == "space")&&(event.keyDown()))
         {

@@ -23,9 +23,10 @@ namespace myFrame
             }
             void swap()
             {
-		        typename pcl::PointCloud<PointT>::Ptr temp{this->cloud};
-                this->cloud.reset(this->cloud2);
-                this->cloud2.reset(temp);
+		        typename pcl::PointCloud<PointT>::Ptr temp(new pcl::PointCloud<PointT>);
+                *(temp) = *(this->cloud);
+                *(this->cloud) = *(this->cloud2);
+                *(this->cloud2) = *(temp);
                 this->num = (this->num%2) + 1;
             }
             void swap(const int &i)
@@ -37,7 +38,10 @@ namespace myFrame
             }
             void sync()
             {
-                this->cloud2.reset(this->cloud);
+		        typename pcl::PointCloud<PointT>::Ptr temp(new pcl::PointCloud<PointT>);
+                *(temp) = *(this->cloud);
+                this->cloud2.reset(new pcl::PointCloud<PointT>);
+                *(this->cloud2) = *(temp);
             }
     };
 
@@ -160,10 +164,13 @@ namespace myFrame
                             if(this->yolo_objects[i]->cloud->points.size() > 0)
                             {
                                 std::stringstream tmp;
+                                std::stringstream tmp2;
                                 tmp << this->file_name << "_" << i << ".pcd";
-                                ofs << i << '_' << this->yolo_objects[i]->name << "=" << tmp.str() << std::endl;
+                                tmp2 << this->file_name << "_" << i << "_2" << ".pcd";
+                                ofs << i << '_' << this->yolo_objects[i]->name << "=" << tmp.str()  << "&" << tmp2.str() << std::endl;
 
                                 pcl::io::savePCDFileBinaryCompressed(data_dir + tmp.str(), *(this->yolo_objects[i]->cloud));
+                                pcl::io::savePCDFileBinaryCompressed(data_dir + tmp2.str(), *(this->yolo_objects[i]->cloud2));
                             }
                         }
                     }
@@ -182,10 +189,13 @@ namespace myFrame
                             if(this->yolo_objects[i]->cloud->points.size() > 0)
                             {
                                 std::stringstream tmp;
-                                tmp << data_dir << this->file_name << "_" << i << ".pcd";
-                                ofs << i << '_' << this->yolo_objects[i]->name << "=" << tmp.str() << std::endl;
+                                std::stringstream tmp2;
+                                tmp << this->file_name << "_" << i << ".pcd";
+                                tmp2 << this->file_name << "_" << i << "_2" << ".pcd";
+                                ofs << i << '_' << this->yolo_objects[i]->name << "=" << tmp.str()  << "&" << tmp2.str() << std::endl;
 
-                                pcl::io::savePCDFileBinary(tmp.str(), *(this->yolo_objects[i]->cloud));
+                                pcl::io::savePCDFileBinary(data_dir + tmp.str(), *(this->yolo_objects[i]->cloud));
+                                pcl::io::savePCDFileBinary(data_dir + tmp2.str(), *(this->yolo_objects[i]->cloud2));
                             }
                         }
                     }
@@ -226,12 +236,18 @@ namespace myFrame
                         if(!skip_objects_cloud)
                         {
                             std::vector<std::string> strs2;
+                            std::vector<std::string> strs3;
                             boost::split(strs2, strs[0], boost::is_any_of("_"));
+                            boost::split(strs3, strs[1], boost::is_any_of("&"));
                             boost::shared_ptr<YoloObject<PointT>> yoloObject(new YoloObject<PointT>);
                             yoloObject->name = strs2[1];
                             typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
-                            pcl::io::loadPCDFile(data_dir + strs[1], *cloud);
+                            typename pcl::PointCloud<PointT>::Ptr cloud2(new pcl::PointCloud<PointT>);
+
+                            pcl::io::loadPCDFile(data_dir + strs3[0], *cloud);
+                            pcl::io::loadPCDFile(data_dir + strs3[1], *cloud2);
                             yoloObject->cloud = cloud;
+                            yoloObject->cloud2 = cloud2;
                             this->yolo_objects.push_back(yoloObject);
                         }
                         objects_cloud_isSet = !skip_objects_cloud;
@@ -723,5 +739,293 @@ namespace myFrame
 
 #pragma endregion noiseRemovalCustomFrameYoloObjects
 
+#pragma region test
+/*
+
+    class Config
+    {
+        public:
+            std::string input;
+            std::string inputBackground;
+            std::string inputBag;
+            bool inputFromBag;
+            bool inputFromFolder;
+            bool inputFullCloud;
+            bool inputObjectCloud;
+
+            std::string output;
+            bool outputFullCloud;
+            bool outputObjectCloud;
+
+            bool librealsensePostProcessing;
+            double objectSegmentationScale;
+            double backgroundSegmentationResolution;
+            double noiseRemovalPercentP;
+            double noiseRemovalStddevMulThresh;
+        
+            Config()
+            {
+                input = "";
+                inputFromBag = false;
+                inputFromFolder = false;
+                inputFullCloud = false;
+                inputObjectCloud = false;
+                inputprocessedCloud = false;
+
+                output = "";
+                outputFullCloud = false;
+                outputObjectCloud = false;
+
+                librealsensePostProcessing = false;
+                objectSegmentationScale = 0.0;
+                backgroundSegmentationResolution = 0.0;
+                noiseRemovalPercentP = 0.0;
+                noiseRemovalStddevMulThresh = 0.0;
+            }
+
+            bool setInput(std::string bag, std::string inputBackground)
+            {
+                this->inputBag = bag;
+                this->inputBackground = inputBackground;
+                this->inputFromBag = true;
+                this->inputFromFolder = false;
+                this->inputFullCloud = false;
+                this->inputObjectCloud = false;
+            }
+
+            bool setInput(std::string path, std::string inputBackground, bool inputFullCloud, bool inputObjectCloud)
+            {
+                this->input = path;
+                this->inputBackground = inputBackground;
+                this->inputFromBag = false;
+                this->inputFromFolder = true;
+                this->inputFullCloud = inputFullCloud;
+                this->inputObjectCloud = inputObjectCloud;
+            }
+
+            bool setObjectSegmentationParameter(double scale)
+            {
+                if(scale <= 0.0)
+                {
+                    std::cerr << "The scale can't lower than or equal to 0.0" << std::endl;
+                    return false;
+                }
+
+                this->objectSegmentationScale = scale;
+                
+                return true;
+            }
+
+            bool setBackgroundSegmentationParameter(double resolution)
+            {
+                if(resolution < 0.001)
+                {
+                    std::cerr << "The resolution is too small, it should > 0.001" << std::endl;
+                    return false;
+                }
+                this->backgroundSegmentationResolution = resolution;
+            }
+
+            bool setNoiseRemovalParameter(double percentP, double stddevMulThresh)
+            {
+                if((percentP < 0.001)||(percentP > 1.0))
+                {
+                    std::cerr << "The percentP isn't between [0.001 ~ 1.0]" << std::endl;
+                    return false;
+                }
+                this->noiseRemovalPercentP = percentP;
+                this->noiseRemovalStddevMulThresh = stddevMulThresh;
+            }
+
+            std::vector<std::string> getFullCloud()
+            {
+                std::vector<std::string> files;
+                std::string folder = boost::filesystem::path{this->inputBag}.stem().string();
+
+                if(!myFunction::fileExists(folder)) return files;
+
+                for (boost::filesystem::directory_entry & file : boost::filesystem::directory_iterator(folder))
+                {
+                    if(file.path().extension().string() == ".txt")
+                    {
+                        files.push_back(file.path().string());
+                    }
+                }
+                return files;
+            }
+
+            std::vector<std::string> getObjectCloud()
+            {
+                std::vector<std::string> files;
+                std::stringstream folder;
+                folder << boost::filesystem::path{this->inputBag}.stem().string();
+                folder << '/';
+                folder << "[os=";
+                folder << this->objectSegmentationScale;
+                folder << ']';
+
+                if(!myFunction::fileExists(folder)) return files;
+
+                for (boost::filesystem::directory_entry & file : boost::filesystem::directory_iterator(folder))
+                {
+                    if(file.path().extension().string() == ".txt")
+                    {
+                        files.push_back(file.path().string());
+                    }
+                }
+                return files;
+            }
+
+            std::vector<std::string> getProcessedCloud()
+            {
+                std::vector<std::string> files;
+                std::stringstream folder;
+                folder << boost::filesystem::path{this->inputBag}.stem().string();
+                folder << '/';
+                folder << "[os=";
+                folder << this->objectSegmentationScale;
+                folder << ']';
+
+                folder << "[bs=";
+                folder << this->backgroundSegmentationResolution;
+                folder << "]";
+
+                folder << "[nr=";
+                folder << this->noiseRemovalPercentP;
+                folder << "_";
+                folder << this->noiseRemovalStddevMulThresh;
+                folder << "]";
+
+                if(!myFunction::fileExists(folder)) return files;
+
+                for (boost::filesystem::directory_entry & file : boost::filesystem::directory_iterator(folder))
+                {
+                    if(file.path().extension().string() == ".txt")
+                    {
+                        files.push_back(file.path().string());
+                    }
+                }
+                return files;
+            }
+    };
+    template<typename PointT>
+    class CustomFrames
+    {
+        public:
+            std::vector<boost::shared_ptr<CustomFrame<PointT>>> frames;
+            boost::shared_ptr<Config> config;
+
+            bool setConfig(Config config)
+            {
+                this->config.reset(config);
+            }
+
+            bool load()
+            {
+                std::vector<std::string> fullClouds;
+                std::vector<std::string> objectClouds;
+                std::vector<std::string> processedClouds;
+
+                fullClouds = this->config.getFullCloud();
+                objectClouds = this->config.getObjectCloud();
+                processedClouds = this->config.getProcessedCloud();
+
+                if(fullClouds.size() == 0)
+                {
+                    this->loadFromBag();
+                }
+                else
+                {
+                    this->loadFromFolder();
+                }
+            }
+
+        private:
+            bool loadFromBag()
+            {
+                rs2::config cfg;
+                auto pipe = std::make_shared<rs2::pipeline>();
+
+                cfg.enable_device_from_file(this->config->input);
+                std::chrono::milliseconds bagStartTime = myFunction::bagFileNameToMilliseconds(this->config->input);
+
+                rs2::pipeline_profile selection = pipe->start(cfg);
+
+                auto device = pipe->get_active_profile().get_device();
+                rs2::playback playback = device.as<rs2::playback>();
+                playback.set_real_time(false);
+
+                auto duration = playback.get_duration();
+                int progress = 0;
+                auto frameNumber = 0ULL;
+
+                int finished = 0;
+
+                while (true) 
+                {
+                    playback.resume();
+                    auto frameset = pipe->wait_for_frames();
+                    playback.pause();
+
+                    if((frameset[0].get_frame_number() < frameNumber)||(finished >= number))
+                    {
+                        break;
+                    }
+
+                    if(frameNumber == 0ULL)
+                    {
+                        bagStartTime -= std::chrono::milliseconds(int64_t(frameset.get_timestamp()));
+                    }
+                    
+                    boost::shared_ptr<CustomFrame<PointT>> customFrame(new CustomFrame<PointT>);
+
+                    if(customFrame->set(frameset, bagStartTime, darknet_txt_path, tmp_dir, postProcessing))
+                    {
+                        this->frames.push_back(customFrame);
+                        finished++;
+                    }
+                    frameNumber = frameset[0].get_frame_number();
+                }
+            }
+            template<typename RandomIt1, typename RandomIt2>
+            int loadFromFolderPart(int divisionNumber, RandomIt1 beg1, RandomIt1 end1, RandomIt2 beg2, RandomIt2 end2)
+            {
+                auto len = end - beg;
+
+                if(len < divisionNumber)
+                {
+                    int out = 0;
+			        for(auto it = beg; it != end; ++it)
+                    {
+                        
+                    }
+                    return out;
+                }
+                auto mid = beg + len/2;
+                auto handle = std::async(std::launch::async, loadFromFolderPart<RandomIt>, division_num, data_dir, skip_full_cloud, skip_objects_cloud, beg, mid);
+                auto out1 = loadFromFolderPart<RandomIt>(division_num, data_dir, skip_full_cloud, skip_objects_cloud, mid, end);
+                auto out = handle.get();
+            }
+
+            bool loadFromFolder
+            {
+                std::vector<std::string> files;
+                for (boost::filesystem::directory_entry & file : boost::filesystem::directory_iterator(data_dir))
+                {
+                    if(file.path().extension().string() == ".txt")
+                    {
+                        files.push_back(file.path().string());
+                    }
+                } 
+
+                int divisionNumber = myFunction::getDivNum<size_t, size_t>(files.size());
+
+                this->frames.resize(files.size());
+                
+                int count = loadFromFolderPart(divisionNumber, files.begin(), files.end(), this->frames.begin(), this->frames.end());
+            }
+    };
+*/
+#pragma endregion test
 }
 #endif
