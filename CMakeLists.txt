@@ -40,14 +40,15 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
     )
 
 project(${PROJECT_NAME})
-
-set(LIBREALSENSE_INSTALLATION_DIR "" CACHE PATH "librealsense installation directory")
-if(LIBREALSENSE_INSTALLATION_DIR STREQUAL "")
-    find_package(realsense2 REQUIRED)
-else()
-    find_package(realsense2 REQUIRED PATHS ${LIBREALSENSE_INSTALLATION_DIR} NO_DEFAULT_PATH)
+set(BUILD_REALSENSE OFF)
+if(BUILD_REALSENSE)
+    set(LIBREALSENSE_INSTALLATION_DIR "" CACHE PATH "librealsense installation directory")
+    if(LIBREALSENSE_INSTALLATION_DIR STREQUAL "")
+        find_package(realsense2 REQUIRED)
+    else()
+        find_package(realsense2 REQUIRED PATHS ${LIBREALSENSE_INSTALLATION_DIR} NO_DEFAULT_PATH)
+    endif()
 endif()
-
 
 find_package(PCL 1.2 REQUIRED)  #尋找PCL函式庫
 
