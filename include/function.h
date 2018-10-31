@@ -3,8 +3,8 @@
 
 #include <iostream>
 #include <future>
-#include <librealsense2/rs.hpp>
-#include <librealsense2/rsutil.h>
+//#include <librealsense2/rs.hpp>
+//#include <librealsense2/rsutil.h>
 #include <pcl/io/ply_io.h>
 #include <pcl/io/vtk_lib_io.h>
 #include <pcl/features/normal_3d.h>
@@ -714,35 +714,8 @@ namespace myFunction
 	}
 
 #pragma endregion offsetToOrigin
-	
+	/*
 #pragma region points_to_pcl
-
-	template<typename RandomIt, typename RandomIt2>
-	int points_to_pclPart(const int &division_num, RandomIt2 ptr, const RandomIt &beg, const RandomIt &end)
-	{
-		auto len = end - beg;
-
-		if(len < division_num)
-		{
-			int out;
-			for(auto it = beg; it != end; ++it)
-			{
-				(*it).x = ptr->x;
-				(*it).y = ptr->y;
-				(*it).z = ptr->z;
-				ptr++;
-				out++;
-			}
-			return out;
-		}
-		auto mid = beg + len/2;
-		auto ptr2 = ptr + len/2;
-		auto handle = std::async(std::launch::async, points_to_pclPart<RandomIt, RandomIt2>, division_num, ptr, beg, mid);
-		auto out = points_to_pclPart<RandomIt, RandomIt2>(division_num, ptr2, mid, end);
-		auto out1 = handle.get();
-
-		return out + out1;
-	}
 
 	template<typename PointT>
 	typename pcl::PointCloud<PointT>::Ptr points_to_pcl(const rs2::points &points)
@@ -754,22 +727,6 @@ namespace myFunction
 		auto sp = points.get_profile().as<rs2::video_stream_profile>();
 		
 		auto ptr = points.get_vertices();
-		/*////////////////////////////////////////////////////////////////////////
-		cloud->width = sp.width();
-		cloud->height = sp.height();
-		cloud->is_dense = false;
-		cloud->points.resize(points.size());
-
-		int count = points_to_pclPart(division_num, ptr, cloud->points.begin(), cloud->points.end());
-		/*for (auto& p : cloud->points)
-		{
-			p.x = ptr->x;
-			p.y = ptr->y;
-			p.z = ptr->z;
-			ptr++;
-		}*/
-		/////////////////////////////////////////////////////////////////////////
-		/////////////////////////////////////////////////////////////////////////
 		for(int i = 0; i < points.size(); i++)
 		{
 			if(fabs(ptr->x*ptr->y*ptr->z) != 0)
@@ -785,12 +742,11 @@ namespace myFunction
 
 		cloud->width = (int) cloud->points.size();
 		cloud->height = 1;
-		/////////////////////////////////////////////////////////////////////////
 		return cloud;
 	}
 
 #pragma endregion points_to_pcl
-
+	*/
 #pragma region getChanges
 
 	template<typename PointT>

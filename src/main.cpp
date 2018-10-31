@@ -10,6 +10,8 @@
 #include <pcl/features/normal_3d.h>
 #include <thread>
 #include <pcl/io/vlp_grabber.h>
+#include "../include/function.h"
+#include "../include/segmentation.h"
 
 using namespace std;
 using namespace pcl;
@@ -29,7 +31,8 @@ void pcl_viewer()
     viewer->addCoordinateSystem( 3.0, "coordinate" );
     viewer->setBackgroundColor( 0.0, 0.0, 0.0, 0 );
     viewer->initCameraParameters();
-    viewer->setCameraPosition( 0.0, 0.0, 30.0, 0.0, 1.0, 0.0, 0 );
+    viewer->setSize(1600, 900);
+    viewer->setCameraPosition( 0.0, 0.0, 20.0, 0.0, 1.0, 1.0, 0 );
 
     pcl::visualization::PointCloudColorHandler<PointType>::Ptr handler;
 
@@ -51,9 +54,22 @@ void pcl_viewer()
     // Register Callback Function
     boost::signals2::connection connection = grabber->registerCallback( function );
 
+    myClass::backgroundSegmentation<PointType> backgroundSegmentation;
+
+    pcl::PointCloud<PointType>::Ptr background(new pcl::PointCloud<PointType>);
+    pcl::io::loadPCDFile("../file/background_2018-10-29-18-58-59_Velodyne-VLP-16-Data.pcd", *background);
+
+    double resolution;
+    std::cerr << "Input resolution : ";
+    cin >> resolution;
+
+    backgroundSegmentation.setBackground(background, resolution);
+
+    uint32_t seq = std::numeric_limits<uint32_t>::min();
+
     // Start Grabber
     grabber->start();
-
+    pcl::PointCloud<PointType>::Ptr temp(new pcl::PointCloud<PointType>);
     while( !viewer->wasStopped() ){
         // Update Viewer
         viewer->spinOnce();
@@ -61,9 +77,46 @@ void pcl_viewer()
         boost::mutex::scoped_try_lock lock( mutex );
         if( lock.owns_lock() && cloud ){
             // Update Point Cloud
-            handler->setInputCloud( cloud );
-            if( !viewer->updatePointCloud( cloud, *handler, "cloud" ) ){
-                viewer->addPointCloud( cloud, *handler, "cloud" );
+            *temp = *cloud;
+            temp = backgroundSegmentation.compute(temp);
+            handler->setInputCloud( temp );
+            if( !viewer->updatePointCloud( temp, *handler, "cloud" ) ){
+                viewer->addPointCloud( temp, *handler, "cloud" );
+            }
+
+
+            if(seq <= cloud->header.seq)
+            {
+                if(seq != cloud->header.seq)
+                {
+                    std::stringstream ss;
+                    ss << cloud->header.seq;
+                    ss << ".png";
+                    viewer->saveScreenshot("video/" + ss.str());    
+
+                    double x_max = std::numeric_limits<double>::min();
+                    double y_max = std::numeric_limits<double>::min();
+                    double z_max = std::numeric_limits<double>::min();
+                    for(auto it : temp->points)
+                    {
+                        x_max = std::fmax(it.x, x_max);
+                        y_max = std::fmax(it.y, y_max);
+                        z_max = std::fmax(it.z, z_max);
+                    }
+                    std::cerr << "frame_id : " << cloud->header.frame_id << std::endl;
+                    std::cerr << "seq : " << cloud->header.seq << std::endl;
+                    std::cerr << "stamp : " << cloud->header.stamp << std::endl;
+                    std::cerr << "convert to millis : " << myFunction::millisecondToString(std::chrono::milliseconds(cloud->header.stamp*1000), false) << std::endl;
+                    
+                    std::cerr << "x_max : " << x_max << std::endl;
+                    std::cerr << "y_max : " << y_max << std::endl;
+                    std::cerr << "z_max : " << z_max << std::endl;  
+                    seq = cloud->header.seq;
+                }   
+            }
+            else
+            {
+                break;
             }
         }
     }
