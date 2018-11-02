@@ -139,16 +139,6 @@ namespace myFunction
 		rotateZ(point.x, point.y, point.z, angle);
 	}
 
-	template<typename Type>
-	std::string commaFix(const Type &input)		//1000000 -> 1,000,000
-	{
-        std::stringstream ss;
-        ss.imbue(std::locale(""));
-        ss << std::fixed << input;
-        
-		return ss.str();
-	}
-
 	bool fileExists(const std::string &filename)
 	{
 		struct stat buffer;
@@ -162,12 +152,6 @@ namespace myFunction
 
 		return mesh;
 	}
-
-	template<typename RandomIt1, typename RandomIt2> 
-	int getDivNum(const RandomIt1 &total, const RandomIt2 part = (RandomIt2)(std::thread::hardware_concurrency()+1))
-	{
-		return std::ceil((double)(total)/(double)(part));
-	}		
 
 #pragma endregion basic
 	

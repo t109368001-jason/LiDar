@@ -3,82 +3,11 @@
 
 #include <iostream>
 #include <future>
-#include <pcl/point_cloud.h>
-#include <pcl/octree/octree_pointcloud_changedetector.h>
-#include "../include/function.h"
+#include <pcl-1.8/pcl/point_cloud.h>
+#include <pcl-1.8/pcl/octree/octree_pointcloud_changedetector.h>
 
 namespace myClass
 {
-#pragma region backgroundSegmentation
-
-	template<typename PointT>
-	class backgroundSegmentation
-	{
-		private:
-			bool isSet;
-			bool log_to_file;
-			typename pcl::PointCloud<PointT>::Ptr background;
-			pcl::octree::OctreePointCloudChangeDetector<PointT> *octree;
-		public:
-			void setBackground(const typename pcl::PointCloud<PointT>::Ptr &background, const double &resolution = 1, const bool log_to_file = false)
-			{
-				this->background = background;
-				
-				this->octree = new pcl::octree::OctreePointCloudChangeDetector<PointT>(resolution);
-				this->octree->setInputCloud(this->background);
-				this->octree->addPointsFromInputCloud();
-				this->octree->switchBuffers();
-
-				this->log_to_file = log_to_file;
-
-				if(this->log_to_file)
-				{
-					std::ofstream ofs("backgroundSegmentation.csv", ios::ate);
-					ofs << "name" << "," << "total" << "," << "after segmentation" << std::endl;
-				}
-
-				this->isSet = true;
-			}
-
-			typename pcl::PointCloud<PointT>::Ptr compute(const typename pcl::PointCloud<PointT>::Ptr &cloud, const std::string name = "")
-			{
-				if(!isSet)
-				{
-					std::cerr << "Background is not set" << endl;
-					return cloud;
-				}
-
-				typename pcl::PointCloud<PointT>::Ptr temp(new typename pcl::PointCloud<PointT>);
-				pcl::octree::OctreePointCloudChangeDetector<PointT> tree = *this->octree;
-				std::vector<int> newPointIdxVector;
-				
-				tree.setInputCloud(cloud);
-				tree.addPointsFromInputCloud();
-
-				tree.getPointIndicesFromNewVoxels(newPointIdxVector);	//get changed points
-				
-				for(auto it = newPointIdxVector.begin(); it != newPointIdxVector.end(); ++it)
-				{
-					temp->points.push_back(cloud->points[*it]);
-				}
-
-				temp->width = (int) temp->points.size();
-				temp->height = 1;
-
-				if(this->log_to_file)
-				{
-					std::ofstream ofs("backgroundSegmentation.csv", ios::app);
-					ofs << name << "," << cloud->points.size() << "," << temp->points.size() << std::endl;
-					ofs.close();
-				}
-
-				return temp;
-			}
-			
-	};
-
-#pragma endregion backgroundSegmentation
-	
 	template<typename PointT = pcl::PointXYZ>
 	class objectSegmentation
 	{
@@ -139,7 +68,7 @@ namespace myClass
 			{
 				if(!this->cameraParameterIsSet)
 				{
-					std::cerr << "Camera parameter is not set" << endl;
+					std::cerr << "Camera parameter is not set" << std::endl;
 					return false;
 				}
 				double object_X_Temp = object_X;
@@ -180,9 +109,9 @@ namespace myClass
 				typename pcl::PointCloud<PointT>::Ptr cloud(new typename pcl::PointCloud<PointT>);
 				this->keep_Inside = keep_Inside;
 				
-        		int division_num = myFunction::getDivNum<size_t, size_t>(input->points.size());
-				
-				cloud->points = divisionPart(division_num, input->points.begin(), input->points.end());
+                size_t divisionNumber = std::ceil(input->points.size() / (std::thread::hardware_concurrency()+1));
+
+				cloud->points = divisionPart(divisionNumber, input->points.begin(), input->points.end());
 
 				cloud->width = (int) cloud->points.size();
 				cloud->height = 1;
@@ -236,9 +165,9 @@ namespace myClass
 				typename pcl::PointCloud<PointT>::Ptr cloud(new typename pcl::PointCloud<PointT>);
 				this->keep_Inside = keep_Inside;
 
-        		int division_num = myFunction::getDivNum<size_t, size_t>(input->points.size());
-				
-				cloud->points = divisionPart(division_num, input->points.begin(), input->points.end());
+                size_t divisionNumber = std::ceil(input->points.size() / (std::thread::hardware_concurrency()+1));
+
+				cloud->points = divisionPart(divisionNumber, input->points.begin(), input->points.end());
 
 				cloud->width = (int) cloud->points.size();
 				cloud->height = 1;

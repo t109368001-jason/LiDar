@@ -1,7 +1,7 @@
 #ifndef MICROSTOPWATCH_H_
 #define MICROSTOPWATCH_H_
 
-#include "../include/function.h"
+#include "../include/basic_function.h"
 #include <boost/algorithm/string.hpp>
 
 namespace myClass
