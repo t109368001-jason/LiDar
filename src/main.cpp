@@ -1,10 +1,14 @@
 #define HAVE_BOOST
 #define HAVE_PCAP
+#define HAVE_FAST_PCAP
+
+#define TIMEZONE (+8)
 
 #include <iostream>
 #include "../3rdparty/args/args.hxx"
 #include "../3rdparty/VelodyneCapture/VelodyneCapture.h"
 #include "../include/veloFrame.h"
+#include "../include/microStopwatch.h"
 
 std::string filename;
 
@@ -38,12 +42,18 @@ int main(int argc, char * argv[])
         return 1;
     }
 
+    myClass::MicroStopwatch tt("main");
     VeloFrame::VeloFrames veloFrames;
-    veloFrames.pcapFileName = args::get(inputPcap);
-    veloFrames.loadFromPcap();
+    boost::filesystem::path pcapPath{args::get(inputPcap)};
 
-    std::cerr << veloFrames;
-    std::cerr << std::numeric_limits<long long>::max() << std::endl;
+    veloFrames.setPcapFile(pcapPath.string());
+
+    std::cerr << "Loading...", tt.tic();
+    veloFrames.load(pcapPath.parent_path().string());
+    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+    veloFrames.save(pcapPath.parent_path().string());
+    
+    veloFrames.print();
 
     return 0;
 }

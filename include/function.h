@@ -850,13 +850,14 @@ namespace myFunction
 
 #pragma endregion showCloud
 
-#pragma region millisecondToString
+#pragma region durationToString
 
-	std::string millisecondToString(const std::chrono::milliseconds &duration, const bool isFileName = true)
+	template<typename RandomIt>
+	std::string durationToString(const RandomIt &duration, const bool isFileName = true)
 	{
 		std::ostringstream stream;
 		std::chrono::time_point<std::chrono::system_clock> tp = std::chrono::time_point<std::chrono::system_clock>(duration);
-		tp += std::chrono::hours(8);
+		tp += std::chrono::hours(TIMEZONE);
 		auto dp = date::floor<date::days>(tp);  // dp is a sys_days, which is a
 										// type alias for a C::time_point
 		auto date = date::year_month_day{dp};
@@ -876,10 +877,18 @@ namespace myFunction
 		if(!isFileName) stream << '.';
 		else stream << '_';
 		stream << std::setfill('0') << std::setw(3) << time.subseconds().count();
+		if(typeid(RandomIt) == typeid(std::chrono::microseconds))
+		{
+			stream << std::setfill('0') << std::setw(3) << duration.count() % 1000;
+		}
+		if(typeid(RandomIt) == typeid(std::chrono::nanoseconds))
+		{
+			stream << std::setfill('0') << std::setw(3) << duration.count() % 1000000;
+		}
 		return stream.str();
 	}
 
-#pragma endregion millisecondToString
+#pragma endregion durationToString
 
 #pragma region getSimilarity
 
