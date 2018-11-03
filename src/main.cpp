@@ -28,6 +28,13 @@ args::Group requirementGroup(parser, "This group is all required:", args::Group:
 args::Group dontCareGroup(parser, "This group is dont care:", args::Group::Validators::DontCare);
     args::ValueFlag<std::string> inputBackground(dontCareGroup, "inputBackground", "input background", {"back"});
 
+void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing)
+{
+    if(event.keyDown())
+    {
+        std::cerr << "Keyboard pressed: " << ((event.isAltPressed())? "Alt + " : "") << ((event.isCtrlPressed())? "Ctrl + " : "") << ((event.isShiftPressed())? "Shift + " : "") << event.getKeySym() << std::endl;
+    }
+}
 int main(int argc, char * argv[])
 {
     try
@@ -54,6 +61,7 @@ int main(int argc, char * argv[])
 
     myClass::MicroStopwatch tt("main");
     VeloFrame::VeloFrames veloFrames;
+    boost::shared_ptr<VeloFrame::VeloFrameViewer> veloFrameViewer;
     boost::filesystem::path pcapPath{args::get(inputPcap)};
 
     boost::shared_ptr<pcl::PointCloud<pcl::PointXYZI>> cloud(new pcl::PointCloud<pcl::PointXYZI>);
@@ -62,7 +70,7 @@ int main(int argc, char * argv[])
     try
     {
         veloFrames.setPcapFile(pcapPath.string());
-        veloFrames.setBackgroundSegmentationResolution(0.1);
+        veloFrames.setBackgroundSegmentationResolution(10);
         veloFrames.setBackgroundCloud(cloud);
         veloFrames.setNoiseRemovalPercentP(0.01);
         veloFrames.setNoiseRemovalStddevMulThresh(0.01);
@@ -71,7 +79,20 @@ int main(int argc, char * argv[])
         //veloFrames.load();
         veloFrames.load(pcapPath.parent_path().string());
         std::cerr << " >> Done: " << tt.toc_string() << " us\n";
+        
+        std::cerr << "Background segmentation...", tt.tic();
+        veloFrames.backgroundSegmentation();
+        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
 
+        veloFrames.print();
+        
+        veloFrameViewer.reset(new VeloFrame::VeloFrameViewer);
+        veloFrameViewer->registerKeyboardCallback(keyboardEventOccurred);
+        veloFrameViewer->addFrames(veloFrames);
+        veloFrameViewer->run();
+
+        return 0;
+/*
         std::cerr << "Saving...", tt.tic();
         veloFrames.save(pcapPath.parent_path().string());
         std::cerr << " >> Done: " << tt.toc_string() << " us\n";
@@ -93,10 +114,12 @@ int main(int argc, char * argv[])
         std::cerr << " >> Done: " << tt.toc_string() << " us\n";
         
         veloFrames.print();
+*/
+
     }
-    catch(std::runtime_error &e)
+    catch(VeloFrame::VeloFrameException &e)
     {
-        std::cerr << red << "Error : " << reset << e.what() << std::endl;
+        std::cout << e.message() << std::endl;
     }
 
     return 0;

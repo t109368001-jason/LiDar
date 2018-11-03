@@ -14,6 +14,7 @@
 #include <pcl-1.8/pcl/point_types.h>
 #include <pcl-1.8/pcl/io/pcd_io.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl-1.8/pcl/visualization/pcl_visualizer.h>
 #include "../3rdparty/VelodyneCapture/VelodyneCapture.h"
 #include "../include/basic_function.h"
 #include "../include/microStopwatch.h"
@@ -21,6 +22,36 @@
 
 namespace VeloFrame
 {
+    class VeloFrameException : public std::exception
+    {
+        private:
+            std::string exceptionMessage;
+
+        public:
+            VeloFrameException() :
+                exceptionMessage ("No message.") {}
+            explicit VeloFrameException(std::string message) :
+                exceptionMessage (std::move(message)) {}
+            const char *what() const throw()
+            {
+                std::stringstream s;
+                s << "VeloFrameException : " << this->exceptionMessage << std::endl;
+
+                std::string wharString = s.str();
+                return wharString.c_str();
+            }
+            std::string message() const
+            {
+                std::stringstream s;
+                s << "\033[0;31m";      //red
+                s << "VeloFrameException: ";
+                s << "\033[0m";         //default color
+                s << this->exceptionMessage;
+                s << std::endl;
+                return s.str();
+            }
+    };
+
     class VeloFrame
     {
         public:
@@ -67,7 +98,8 @@ namespace VeloFrame
 
     class VeloFrames
     {
-        private:
+        friend class VeloFrameViewer;
+        protected:
             boost::filesystem::path pcapFilePath;
             boost::filesystem::path outputPath;
             boost::filesystem::path outputPathWithParameter;
@@ -82,6 +114,8 @@ namespace VeloFrame
             double backgroundSegmentationResolution;
             double noiseRemovalPercentP;
             double noiseRemovalStddevMulThresh;
+            std::chrono::microseconds begTime;
+            std::chrono::microseconds endTime;
 
         public:
 
@@ -98,6 +132,8 @@ namespace VeloFrame
                 this->backgroundSegmentationResolution = 0.0;
                 this->noiseRemovalPercentP = 0.0;
                 this->noiseRemovalStddevMulThresh = 0.0;
+                this->begTime = std::chrono::microseconds(int64_t(0));
+                this->endTime = std::chrono::microseconds(std::numeric_limits<int64_t>::max());
             }
 
             bool setPcapFile(const std::string &pcapFilePath)
@@ -105,34 +141,46 @@ namespace VeloFrame
                 boost::filesystem::path temp = boost::filesystem::path{pcapFilePath};
                 if(!boost::filesystem::exists(temp))
                 {                    
-                    throw std::runtime_error(boost::filesystem::absolute(temp).string() + " not found");
+                    throw VeloFrameException(boost::filesystem::absolute(temp).string() + " not found");
                     return false;
                 }
                 this->pcapFilePath = boost::filesystem::canonical(temp);
                 return true;
             }
 
-            bool setBackgroundSegmentationResolution(const double backgroundSegmentationResolution)
+            bool setBackgroundSegmentationResolution(const double &backgroundSegmentationResolutionCM)
             {
-                if(backgroundSegmentationResolution <= 0.0) throw std::runtime_error("background segmentation resolution should > 0");
-                this->backgroundSegmentationResolution = backgroundSegmentationResolution;
+                if(backgroundSegmentationResolutionCM <= 0.0) throw VeloFrameException("background segmentation resolution should > 0");
+                this->backgroundSegmentationResolution = backgroundSegmentationResolutionCM;
             }
 
-            bool setNoiseRemovalPercentP(const double noiseRemovalPercentP)
+            bool setNoiseRemovalPercentP(const double &noiseRemovalPercentP)
             {
-                if((noiseRemovalPercentP <= 0.0)&&(noiseRemovalPercentP > 1.0)) throw std::runtime_error("noise removal percentP should > 0 and <= 1.0");
+                if((noiseRemovalPercentP <= 0.0)&&(noiseRemovalPercentP > 1.0)) throw VeloFrameException("noise removal percentP should > 0 and <= 1.0");
                 this->noiseRemovalPercentP = noiseRemovalPercentP;
             }
 
-            bool setNoiseRemovalStddevMulThresh(const double noiseRemovalStddevMulThresh)
+            bool setNoiseRemovalStddevMulThresh(const double &noiseRemovalStddevMulThresh)
             {
-                if((noiseRemovalStddevMulThresh <= 0.0)&&(noiseRemovalStddevMulThresh > 1.0)) throw std::runtime_error("noise removal stddevMulThresh should > 0 and <= 1.0");
+                if((noiseRemovalStddevMulThresh <= 0.0)&&(noiseRemovalStddevMulThresh > 1.0)) throw VeloFrameException("noise removal stddevMulThresh should > 0 and <= 1.0");
                 this->noiseRemovalStddevMulThresh = noiseRemovalStddevMulThresh;
             }
 
             bool setBackgroundCloud(const boost::shared_ptr<pcl::PointCloud<pcl::PointXYZI>> &backgroundCloud)
             {
                 this->backgroundCloud = backgroundCloud;
+            }
+
+            bool setBegTime(const std::chrono::microseconds &begTime)
+            {
+                if(begTime < std::chrono::microseconds(int64_t(0))) throw VeloFrameException("Begin time can't < 0");
+                this->begTime = begTime;
+            }
+
+            bool setEndTime(const std::chrono::microseconds &endTime)
+            {
+                if(endTime <= this->begTime) throw VeloFrameException("End time should > begin time");
+                this->endTime = endTime;
             }
 
             bool resetParameterString()
@@ -162,8 +210,10 @@ namespace VeloFrame
             {
                 bool result;
 
-                if(this->frames.size() != 0) return false;
-
+                if(this->frames.size() != 0)
+                {
+                    return false;
+                }
                 this->outputPath = prefixPath;
                 this->outputPath.append(this->pcapFilePath.stem().string());
                 this->resetParameterString();
@@ -289,9 +339,9 @@ namespace VeloFrame
 
             bool backgroundSegmentation()
             {
-                if(this->frames.size() == 0) throw std::runtime_error("veloFrame is empty");
-                if(this->backgroundCloud == NULL) throw std::runtime_error("background cloud not set");
-                if(this->backgroundSegmentationResolution <= 0) throw std::runtime_error("background segmentation resolution not set");
+                if(this->frames.size() == 0) throw VeloFrameException("veloFrame is empty");
+                if(this->backgroundCloud == NULL) throw VeloFrameException("background cloud not set");
+                if(this->backgroundSegmentationResolution <= 0) throw VeloFrameException("background segmentation resolution not set");
 
                 #ifdef VELOFRAME_USE_MULTITHREAD
                 myClass::backgroundSegmentation<pcl::PointXYZI> backgroundSegmentation;
@@ -308,6 +358,17 @@ namespace VeloFrame
                     it->cloud = backgroundSegmentation.compute(it->cloud);
                 }
                 #endif
+
+                for(int i = 0; i < this->frames.size(); ++i)
+                {
+                    if(this->frames[i]->cloud->points.size() == 0)
+                    {
+                        this->frames.erase(this->frames.begin() + i);
+                        --i;
+                        continue;
+                    }
+                }
+
                 this->isBackgroundSegmented = true;
                 this->isChanged = true;
                 this->isSaved = false;
@@ -357,6 +418,17 @@ namespace VeloFrame
                     sor.filter (*(it->cloud));
                 }
                 #endif
+
+                for(int i = 0; i < this->frames.size(); ++i)
+                {
+                    if(this->frames[i]->cloud->points.size() == 0)
+                    {
+                        this->frames.erase(this->frames.begin() + i);
+                        --i;
+                        continue;
+                    }
+                }
+
                 this->isNoiseRemoved = true;
                 this->isChanged = true;
                 this->isSaved = false;
@@ -577,7 +649,7 @@ namespace VeloFrame
 
                 if(!boost::filesystem::exists(configPath))
                 {
-                    throw std::runtime_error(boost::filesystem::absolute(configPath).string() + " not found");
+                    throw VeloFrameException(boost::filesystem::absolute(configPath).string() + " not found");
                     return false;
                 }
 
@@ -669,6 +741,159 @@ namespace VeloFrame
                 auto out = handle.get();
 
                 return out & out1;
+            }
+
+    };
+
+    class VeloFrameViewer : protected pcl::visualization::PCLVisualizer
+    {
+        private:
+            bool pause;
+            bool showBackground;
+            bool realTime;
+            bool startTimeReset;
+            double playSpeedRate;
+            double pointSize;
+            std::vector<boost::shared_ptr<VeloFrame>> frames;
+            std::queue<boost::shared_ptr<VeloFrame>> queue;
+            std::chrono::steady_clock::time_point startTime;
+            std::chrono::microseconds startTimestamp;
+            boost::function<void (const pcl::visualization::KeyboardEvent&, void*)> externalKeyboardEventOccurred;
+
+        public:
+            VeloFrameViewer():pcl::visualization::PCLVisualizer()
+            {
+                this->pause = false;
+                this->showBackground = false;
+                this->realTime = true;
+                this->playSpeedRate = 1.0;
+                this->pointSize = 1.0;
+                this->startTime = std::chrono::steady_clock::now();
+                this->startTimestamp = std::chrono::microseconds(int64_t(0));
+                this->addCoordinateSystem( 3.0, "coordinate" );
+                this->setBackgroundColor( 0.0, 0.0, 0.0, 0 );
+                this->initCameraParameters();
+                this->setCameraPosition( 0.0, 0.0, 2000.0, 0.0, 1.0, 0.0, 0 );
+
+            }
+
+            void addFrames(const VeloFrames &vf)
+            {
+                for(auto it : vf.frames)
+                {
+                    boost::shared_ptr<VeloFrame> temp(new VeloFrame);
+                    *temp = *it;
+                    this->frames.push_back(temp);
+                }
+                std::sort(this->frames.begin(), this->frames.end(), [](const auto &a, const auto &b){ return a->minTimestamp < b->minTimestamp; });
+                for(int i = 0; i < (this->frames.size()-1); ++i)
+                {
+                    if(this->frames[i]->minTimestamp == this->frames[i+1]->minTimestamp)
+                    {
+                        this->frames.erase(this->frames.begin() + i);
+                        --i;
+                        continue;
+                    }
+                }
+            }
+
+            void run()
+            {
+                boost::shared_ptr<pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZI>> handler( new pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZI>( "intensity" ) );
+                std::chrono::microseconds nextTimestamp;
+
+                for(auto it : this->frames)
+                {
+                    this->queue.push(it);
+                }
+
+                this->startTime = std::chrono::steady_clock::now();
+                this->startTimestamp = this->queue.front()->minTimestamp - std::chrono::microseconds(int64_t(1000000/5));
+                nextTimestamp = this->queue.front()->minTimestamp;
+                while(!this->wasStopped())
+                {
+                    this->spinOnce();
+                    
+                    if(this->pause) continue;
+                    bool stay = (((std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - this->startTime).count()*this->playSpeedRate) < (nextTimestamp-this->startTimestamp).count()) && this->realTime);
+
+                    if(stay) continue;
+
+                    auto it = this->queue.front();
+                    this->queue.pop();
+                    
+                    handler->setInputCloud( it->cloud );
+                    if( !this->updatePointCloud( it->cloud, *handler, "cloud" ) ){
+                        this->addPointCloud( it->cloud, *handler, "cloud" );
+                    }
+                    this->queue.push(it);
+                    
+                    if(nextTimestamp > this->queue.front()->midTimestamp)
+                    {
+                        this->startTime = std::chrono::steady_clock::now();
+                    }
+                    nextTimestamp = this->queue.front()->minTimestamp;
+                }
+            }
+
+            inline void registerKeyboardCallback (void (*callback) (const pcl::visualization::KeyboardEvent&, void*), void* cookie = NULL)
+            {
+                this->externalKeyboardEventOccurred = boost::bind(callback, _1, cookie);
+                this->pcl::visualization::PCLVisualizer::registerKeyboardCallback(&VeloFrameViewer::keyboardEventOccurred, *this);
+            }
+
+            void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing)
+            {
+                if(event.isCtrlPressed())
+                {
+                    if((event.getKeySym() == "b")&&(event.keyDown()))
+                    {
+                            this->showBackground = !this->showBackground;
+                            std::cerr << "showBackground: " << ((this->showBackground == true)? "ON" : "OFF") << std::endl;
+                    }
+                    else if((event.getKeySym() == "space")&&(event.keyDown()))
+                    {
+                        this->realTime = !this->realTime;
+                        std::cerr << "realTime: " << ((this->realTime == true)? "ON" : "OFF") << std::endl;
+                    }
+                    else if((event.getKeySym() == "KP_Add")&&(event.keyDown()))
+                    {
+                        if(this->playSpeedRate < 10.0) this->playSpeedRate += 0.25;
+                        this->startTimeReset = true;
+                        std::cerr << "playSpeedRate: " << this->playSpeedRate << std::endl;
+                    }
+                    else if((event.getKeySym() == "KP_Subtract")&&(event.keyDown()))
+                    {
+                        if(this->playSpeedRate > 0.25) this->playSpeedRate -= 0.25;
+                        this->startTimeReset = true;
+                        std::cerr << "playSpeedRate: " << this->playSpeedRate << std::endl;
+                    }
+                    else
+                    {
+                        this->externalKeyboardEventOccurred(event, nothing);
+                    }
+                }
+                else
+                {
+                    if((event.getKeySym() == "space")&&(event.keyDown()))
+                    {
+                        this->pause = !this->pause;
+                        std::cerr << "viewer_pause: " << ((this->pause == true)? "ON" : "OFF") << std::endl;
+                    }
+                    else if((event.getKeySym() == "KP_Add")&&(event.keyDown()))
+                    {
+                        if(this->pointSize < 10.0) this->pointSize += 0.5;
+                    }
+                    else if((event.getKeySym() == "KP_Subtract")&&(event.keyDown()))
+                    {
+                        if(this->pointSize > 1.0) this->pointSize -= 0.5;
+                    }
+                    else
+                    {
+                        this->externalKeyboardEventOccurred(event, nothing);
+                    }
+                }
+
             }
 
     };
