@@ -57,7 +57,7 @@ namespace myClass
 					temp->points.push_back(cloud->points[*it]);
 				}
 
-				temp->width = (int) temp->points.size();
+				temp->width = static_cast<uint32_t>(temp->points.size());
 				temp->height = 1;
 
 				if(this->log_to_file)

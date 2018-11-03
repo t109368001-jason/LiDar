@@ -40,7 +40,7 @@ namespace myClass
             }
             void toc_print_string()
             {
-                std::cerr << this->name << ": "<< this->toc_string() << " us" <<  std::endl;
+                std::cout << this->name << ": "<< this->toc_string() << " us" <<  std::endl;
             }
             std::string elapsed_string()
             {
@@ -48,11 +48,15 @@ namespace myClass
             }
             void elapsed_print_string()
             {
-                std::cerr << this->name << ": "<< this->elapsed_string() << " us" <<  std::endl;
+                std::cout << this->name << ": "<< this->elapsed_string() << " us" <<  std::endl;
             }
             int64_t toc_pre()
             {
                 return (toctoc - tictic).total_microseconds();
+            }
+            std::string toc_pre_string()
+            {
+                return myFunction::commaFix((toctoc - tictic).total_microseconds());
             }
             void clear()
             {

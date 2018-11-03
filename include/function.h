@@ -549,7 +549,7 @@ namespace myFunction
         int division_num = getDivNum<size_t, size_t>(cloud_in->points.size());
 		
 		cloud_out->points = XYZ_to_XYZRGBPart(division_num, min_Distance, div, gray, cloud_in->points.begin(), cloud_in->points.end());
-		cloud_out->width = (int) cloud_out->points.size();
+		cloud_out->width = static_cast<uint32_t>(cloud_out->points.size());
 		cloud_out->height = 1;
 
 		return cloud_out;
@@ -607,7 +607,7 @@ namespace myFunction
 			out->points.push_back (point);
 		}
 		
-		out->width = (int) out->points.size();
+		out->width = static_cast<uint32_t>(out->points.size());
 		out->height = 1;
 
 		return out;
@@ -654,9 +654,9 @@ namespace myFunction
 		
 		PointT out = getOriginPart<decltype(cloud->points.begin()), PointT>(division_num, cloud->points.begin(), cloud->points.end());
 		
-		out.x = out.x / (double)cloud->points.size();
-		out.y = out.y / (double)cloud->points.size();
-		out.z = out.z / (double)cloud->points.size();
+		out.x = out.x / static_cast<double>(cloud->points.size());
+		out.y = out.y / static_cast<double>(cloud->points.size());
+		out.z = out.z / static_cast<double>(cloud->points.size());
 
 		return out;
 	}
@@ -724,7 +724,7 @@ namespace myFunction
 			ptr++;
 		}
 
-		cloud->width = (int) cloud->points.size();
+		cloud->width = static_cast<uint32_t>(cloud->points.size());
 		cloud->height = 1;
 		return cloud;
 	}
@@ -752,7 +752,7 @@ namespace myFunction
 			temp->points.push_back(cloud2->points[*it]);
 		}
 
-		temp->width = (int) temp->points.size();
+		temp->width = static_cast<uint32_t>(temp->points.size());
 		temp->height = 1;
 
 		return temp;
@@ -889,7 +889,7 @@ namespace myFunction
         octree.addPointsFromInputCloud ();
         octree.getPointIndicesFromNewVoxels (newPointIdxVector);
 
-        return 1 - ((double)newPointIdxVector.size() / (double)cloud2->points.size());
+        return 1 - (static_cast<double>(newPointIdxVector.size()) / static_cast<double>(cloud2->points.size()));
 	}
 
 #pragma endregion getSimilarity

@@ -28,15 +28,12 @@ namespace VeloFrame
             std::string exceptionMessage;
 
         public:
-            VeloFrameException() :
-                exceptionMessage ("No message.") {}
-            explicit VeloFrameException(std::string message) :
-                exceptionMessage (std::move(message)) {}
+            VeloFrameException() : exceptionMessage ("No message.") {}
+            explicit VeloFrameException(std::string message) : exceptionMessage (std::move(message)) {}
             const char *what() const throw()
             {
                 std::stringstream s;
                 s << "VeloFrameException : " << this->exceptionMessage << std::endl;
-
                 std::string wharString = s.str();
                 return wharString.c_str();
             }
@@ -104,6 +101,7 @@ namespace VeloFrame
             boost::filesystem::path outputPath;
             boost::filesystem::path outputPathWithParameter;
             std::string parameterString;
+            std::vector<double> noiseRemovalParameter;
             std::vector<boost::shared_ptr<VeloFrame>> frames;
             boost::shared_ptr<pcl::PointCloud<pcl::PointXYZI>> backgroundCloud;
             bool isChanged;
@@ -111,6 +109,8 @@ namespace VeloFrame
             bool isSaved;
             bool isBackgroundSegmented;
             bool isNoiseRemoved;
+            bool isNoiseRemovedOverOnce;
+            bool loadSecondCloudAsBackground;
             double backgroundSegmentationResolution;
             double noiseRemovalPercentP;
             double noiseRemovalStddevMulThresh;
@@ -129,81 +129,204 @@ namespace VeloFrame
                 this->isSaved = false;
                 this->isBackgroundSegmented = false;
                 this->isNoiseRemoved = false;
+                this->isNoiseRemovedOverOnce = false;
+                this->loadSecondCloudAsBackground = false;
                 this->backgroundSegmentationResolution = 0.0;
-                this->noiseRemovalPercentP = 0.0;
-                this->noiseRemovalStddevMulThresh = 0.0;
                 this->begTime = std::chrono::microseconds(int64_t(0));
                 this->endTime = std::chrono::microseconds(std::numeric_limits<int64_t>::max());
             }
 
-            bool setPcapFile(const std::string &pcapFilePath)
+            bool setPcapFile(const boost::filesystem::path &pcapFilePath)
             {
-                boost::filesystem::path temp = boost::filesystem::path{pcapFilePath};
-                if(!boost::filesystem::exists(temp))
-                {                    
-                    throw VeloFrameException(boost::filesystem::absolute(temp).string() + " not found");
+                if(!boost::filesystem::exists(pcapFilePath))
+                {
+                    std::stringstream ss;
+                    ss << "VeloFrame::VeloFrames::setPcapFile, ";
+                    ss << boost::filesystem::absolute(pcapFilePath).string();
+                    ss << " not found.";
+                    throw VeloFrameException(ss.str());
                     return false;
                 }
-                this->pcapFilePath = boost::filesystem::canonical(temp);
+                this->pcapFilePath = boost::filesystem::canonical(pcapFilePath);
                 return true;
             }
 
             bool setBackgroundSegmentationResolution(const double &backgroundSegmentationResolutionCM)
             {
-                if(backgroundSegmentationResolutionCM <= 0.0) throw VeloFrameException("background segmentation resolution should > 0");
+                if(backgroundSegmentationResolutionCM <= 0.0)
+                {
+                    std::stringstream ss;
+                    ss << "VeloFrame::VeloFrames::setBackgroundSegmentationResolution, ";
+                    ss << "background segmentation resolution should > 0";
+                    throw VeloFrameException(ss.str());
+                    return false;
+                }
                 this->backgroundSegmentationResolution = backgroundSegmentationResolutionCM;
+                this->isBackgroundSegmented = false;
+                return true;
             }
 
-            bool setNoiseRemovalPercentP(const double &noiseRemovalPercentP)
+            bool setNoiseRemovalParameter(const std::vector<double> noiseRemovalParameter)
             {
-                if((noiseRemovalPercentP <= 0.0)&&(noiseRemovalPercentP > 1.0)) throw VeloFrameException("noise removal percentP should > 0 and <= 1.0");
-                this->noiseRemovalPercentP = noiseRemovalPercentP;
+                if(noiseRemovalParameter.size() == 3)
+                {
+                    if((noiseRemovalParameter[0] <= 0.0)&&(noiseRemovalParameter[0] > 1.0))
+                    {
+                        std::stringstream ss;
+                        ss << "VeloFrame::VeloFrames::setNoiseRemovalPercentP, ";
+                        ss << "noise removal percentP should > 0 and <= 1.0";
+                        throw VeloFrameException(ss.str());
+                        return false;
+                    }
+                    if((noiseRemovalParameter[1] <= 0.0)&&(noiseRemovalParameter[1] > 1.0))
+                    {
+                        std::stringstream ss;
+                        ss << "VeloFrame::VeloFrames::setNoiseRemovalStddevMulThresh, ";
+                        ss << "noise removal stddevMulThresh should > 0 and <= 1.0";
+                        throw VeloFrameException(ss.str());
+                        return false;
+                    }
+                    if(noiseRemovalParameter[2] <= 0.0)
+                    {
+                        std::stringstream ss;
+                        ss << "VeloFrame::VeloFrames::setNoiseRemovalStddevMulThresh, ";
+                        ss << "noise removal times should > 0";
+                        throw VeloFrameException(ss.str());
+                        return false;
+                    }
+                }
+                else if((noiseRemovalParameter.size() % 2) == 0)
+                {
+                    for(int i = 0; i < (noiseRemovalParameter.size()-1); ++i)
+                    {
+                        if((noiseRemovalParameter[i] <= 0.0)&&(noiseRemovalParameter[i] > 1.0))
+                        {
+                            std::stringstream ss;
+                            ss << "VeloFrame::VeloFrames::setNoiseRemovalPercentP, ";
+                            ss << "noise removal percentP should > 0 and <= 1.0";
+                            throw VeloFrameException(ss.str());
+                            return false;
+                        }
+                        if((noiseRemovalParameter[i+1] <= 0.0)&&(noiseRemovalParameter[i+1] > 1.0))
+                        {
+                            std::stringstream ss;
+                            ss << "VeloFrame::VeloFrames::setNoiseRemovalStddevMulThresh, ";
+                            ss << "noise removal stddevMulThresh should > 0 and <= 1.0";
+                            throw VeloFrameException(ss.str());
+                            return false;
+                        }
+                    }
+                }
+                else
+                {
+                    std::stringstream ss;
+                    ss << "VeloFrame::VeloFrames::setNoiseRemovalPercentP, ";
+                    ss << "noise removal parameter number should be 3 or 2*N";
+                    throw VeloFrameException(ss.str());
+                    return false;
+                }
+                this->noiseRemovalParameter = noiseRemovalParameter;
+                this->isNoiseRemoved = false;
+                return true;
             }
 
-            bool setNoiseRemovalStddevMulThresh(const double &noiseRemovalStddevMulThresh)
+            bool setBackgroundCloud(const boost::filesystem::path &backgroundPath)
             {
-                if((noiseRemovalStddevMulThresh <= 0.0)&&(noiseRemovalStddevMulThresh > 1.0)) throw VeloFrameException("noise removal stddevMulThresh should > 0 and <= 1.0");
-                this->noiseRemovalStddevMulThresh = noiseRemovalStddevMulThresh;
-            }
-
-            bool setBackgroundCloud(const boost::shared_ptr<pcl::PointCloud<pcl::PointXYZI>> &backgroundCloud)
-            {
-                this->backgroundCloud = backgroundCloud;
+                if(backgroundPath.string() == "default")
+                {
+                    this->loadSecondCloudAsBackground = true;
+                    return true;
+                }
+                if(!boost::filesystem::exists(backgroundPath))
+                {
+                    std::stringstream ss;
+                    ss << "VeloFrame::VeloFrames::setBackgroundCloud, ";
+                    ss << boost::filesystem::absolute(backgroundPath).string();
+                    ss << " not found.";
+                    throw VeloFrameException(ss.str());
+                    return false;
+                }
+                this->backgroundCloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
+                pcl::io::loadPCDFile(backgroundPath.string(), *(this->backgroundCloud));
+                return true;
             }
 
             bool setBegTime(const std::chrono::microseconds &begTime)
             {
-                if(begTime < std::chrono::microseconds(int64_t(0))) throw VeloFrameException("Begin time can't < 0");
+                if(begTime < std::chrono::microseconds(int64_t(0)))
+                {
+                    std::stringstream ss;
+                    ss << "VeloFrame::VeloFrames::setBegTime, ";
+                    ss << "begin time can't < 0";
+                    throw VeloFrameException(ss.str());
+                    return false;
+                }
                 this->begTime = begTime;
+                return true;
             }
 
             bool setEndTime(const std::chrono::microseconds &endTime)
             {
-                if(endTime <= this->begTime) throw VeloFrameException("End time should > begin time");
+                if(endTime <= this->begTime)
+                {
+                    std::stringstream ss;
+                    ss << "VeloFrame::VeloFrames::setBegTime, ";
+                    ss << "end time should > begin time";
+                    throw VeloFrameException(ss.str());
+                    return false;
+                }
                 this->endTime = endTime;
+                return true;
             }
 
-            bool resetParameterString()
+            std::string getOnlyBackgroundSegmentationParameterString(bool isLoad)
             {
                 std::stringstream ps;
-                if(this->isBackgroundSegmented)
+                if((this->isBackgroundSegmented)||(isLoad))
                 {
                     ps << "bs_" << this->backgroundSegmentationResolution;
                 }
-                ps << '/';
-                if(this->isNoiseRemoved)
-                {
-                    ps << "nr_" << this->noiseRemovalPercentP << "_" << this->noiseRemovalStddevMulThresh;
-                }
-                this->parameterString = ps.str();
+                return ps.str();
             }
 
-            bool load()
+            std::string getOnlyNoiseRemovalParameterString(bool isLoad)
             {
-                if(this->isLoaded) return false;
-                this->loadFromPcap();
-                this->isLoaded = true;
-                return true;
+                std::stringstream ps;
+                if((this->isNoiseRemoved)||(isLoad))
+                {
+                    if(noiseRemovalParameter.size() == 3)
+                    {
+                        for(int i = 0; i < noiseRemovalParameter[2]; ++i)
+                        {
+                            ps << '/';
+                            ps << "nr_" << noiseRemovalParameter[0] << "_" << noiseRemovalParameter[1];
+                        }
+                    }
+                    else if((noiseRemovalParameter.size() % 2) == 0)
+                    {
+                        for(int i = 0; i < (noiseRemovalParameter.size()-1); ++i)
+                        {
+                            ps << '/';
+                            ps << "nr_" << noiseRemovalParameter[i] << "_" << noiseRemovalParameter[i+1];
+                        }
+                    }
+                }
+                return ps.str();
+            }
+
+            std::string getParameterString(bool isLoad)
+            {
+                std::stringstream ps;
+                if((this->isBackgroundSegmented)||(isLoad))
+                {
+                    ps << this->getOnlyBackgroundSegmentationParameterString(isLoad);
+                }
+                ps << '/';
+                if((this->isNoiseRemoved)||(isLoad))
+                {
+                    ps << this->getOnlyNoiseRemovalParameterString(isLoad);
+                }
+                return ps.str();
             }
 
             bool load(const std::string &prefixPath)
@@ -212,23 +335,64 @@ namespace VeloFrame
 
                 if(this->frames.size() != 0)
                 {
+                    std::cout << "File was loded" << std::endl;
                     return false;
                 }
+
+                boost::filesystem::path backgroundSegmentationPath;
+                boost::filesystem::path backgroundSegmentationAndNoiseRemovalPath;
+
                 this->outputPath = prefixPath;
                 this->outputPath.append(this->pcapFilePath.stem().string());
-                this->resetParameterString();
-                this->outputPathWithParameter = this->outputPath;
-                this->outputPathWithParameter.append(this->parameterString);
 
-                if(!boost::filesystem::exists(this->outputPathWithParameter)) this->outputPathWithParameter = this->outputPath;
+                backgroundSegmentationPath = this->outputPath;
+                backgroundSegmentationPath.append(this->getOnlyBackgroundSegmentationParameterString(true));
+                backgroundSegmentationAndNoiseRemovalPath = this->outputPath;
+                backgroundSegmentationAndNoiseRemovalPath.append(this->getParameterString(true));
 
-                if(boost::filesystem::exists(this->outputPathWithParameter))
+                if(boost::filesystem::exists(backgroundSegmentationAndNoiseRemovalPath))
                 {
+                    this->outputPathWithParameter = backgroundSegmentationAndNoiseRemovalPath;
+                    this->outputPathWithParameter = boost::filesystem::canonical(this->outputPathWithParameter);
+                    std::cout << "VeloFrame load from " << this->outputPathWithParameter.string() << std::endl;
+                    result = this->loadFromFolder();
+                    this->isBackgroundSegmented = true;
+                    this->isNoiseRemoved = true;
+                }
+                else if(boost::filesystem::exists(backgroundSegmentationPath))
+                {
+                    this->outputPathWithParameter = backgroundSegmentationPath;
+                    this->outputPathWithParameter = boost::filesystem::canonical(this->outputPathWithParameter);
+                    std::cout << "VeloFrame load from " << this->outputPathWithParameter.string() << std::endl;
+                    result = this->loadFromFolder();
+                    this->isBackgroundSegmented = true;
+                }
+                else if(boost::filesystem::exists(this->outputPath))
+                {
+                    this->outputPathWithParameter = this->outputPath;
+                    this->outputPathWithParameter = boost::filesystem::canonical(this->outputPathWithParameter);
+                    std::cout << "VeloFrame load from " << this->outputPathWithParameter.string() << std::endl;
                     result = this->loadFromFolder();
                 }
                 else
                 {
+                    std::cout << "VeloFrame load from " << this->pcapFilePath.string() << std::endl;
                     result = this->loadFromPcap();
+                }
+
+                if(this->frames.size() == 0)
+                {
+                    std::cout << "VeloFrame was loaded, but frame number is zero" << std::endl;
+                    return false;
+                }
+
+                if(this->loadSecondCloudAsBackground)
+                {
+                    if(this->frames.size() >= 2)
+                    {
+                        this->backgroundCloud = this->frames[1]->cloud;
+                        std::cout << "Use second second cloud as background" << std::endl;
+                    }
                 }
 
                 this->isLoaded = result;
@@ -239,21 +403,19 @@ namespace VeloFrame
             {
                 if(!this->isChanged) 
                 {
-                    std::cerr << std::endl << "No changes to save" << std::endl;
+                    std::cout << std::endl << "No changes to save" << std::endl;
                     return false;
                 }
                 if(this->isSaved)
                 {
-                    std::cerr << std::endl << "No changes to save" << std::endl;
+                    std::cout << std::endl << "No changes to save" << std::endl;
                     return false;
                 }
 
-
                 this->outputPath = prefixPath;
                 this->outputPath.append(this->pcapFilePath.stem().string());
-                this->resetParameterString();
                 this->outputPathWithParameter = this->outputPath;
-                this->outputPathWithParameter.append(this->parameterString);
+                this->outputPathWithParameter.append(this->getParameterString(false));
 
                 if(!boost::filesystem::exists(this->outputPath))
                 {
@@ -314,34 +476,37 @@ namespace VeloFrame
                 return true;
             }
 
-	        template<typename RandomIt1>
-            bool backgroundSegmentationPart(const size_t &divisionNumber, const myClass::backgroundSegmentation<pcl::PointXYZI> backgroundSegmentation, const RandomIt1 &beg, const RandomIt1 &end)
-            {
-                auto len = end - beg;
-
-                if(len < divisionNumber)
-                {
-                    bool out = true;;
-                    for(auto it = beg; it != end; ++it)
-                    {
-                        (*it)->cloud = backgroundSegmentation.compute((*it)->cloud);
-                    }
-                    return out;
-                }
-
-                auto mid = beg + len/2;
-                auto handle = std::async(std::launch::async, &VeloFrames::backgroundSegmentationPart<RandomIt1>, this, divisionNumber, backgroundSegmentation, beg, mid);
-                auto out1 = VeloFrames::backgroundSegmentationPart<RandomIt1>(divisionNumber, backgroundSegmentation, mid, end);
-                auto out = handle.get();
-
-                return out & out1;
-            }
-
             bool backgroundSegmentation()
             {
-                if(this->frames.size() == 0) throw VeloFrameException("veloFrame is empty");
-                if(this->backgroundCloud == NULL) throw VeloFrameException("background cloud not set");
-                if(this->backgroundSegmentationResolution <= 0) throw VeloFrameException("background segmentation resolution not set");
+                if(this->isBackgroundSegmented)
+                {
+                    std::cout << "VeloFrame already Background segmented" << std::endl;
+                    return false;
+                }
+                if(this->backgroundCloud == NULL)
+                {
+                    std::stringstream ss;
+                    ss << "VeloFrame::VeloFrames::backgroundSegmentation, ";
+                    ss << "background cloud not set";
+                    throw VeloFrameException(ss.str());
+                    return false;
+                }
+                if(this->frames.size() == 0)
+                {
+                    std::stringstream ss;
+                    ss << "VeloFrame::VeloFrames::backgroundSegmentation, ";
+                    ss << "veloFrame is empty";
+                    throw VeloFrameException(ss.str());
+                    return false;
+                }
+                if(this->backgroundSegmentationResolution <= 0)
+                {
+                    std::stringstream ss;
+                    ss << "VeloFrame::VeloFrames::backgroundSegmentation, ";
+                    ss << "background segmentation resolution not set";
+                    throw VeloFrameException(ss.str());
+                    return false;
+                }
 
                 #ifdef VELOFRAME_USE_MULTITHREAD
                 myClass::backgroundSegmentation<pcl::PointXYZI> backgroundSegmentation;
@@ -374,51 +539,58 @@ namespace VeloFrame
                 this->isSaved = false;
             }
 
-	        template<typename RandomIt1>
-            bool noiseRemovalPart(const size_t &divisionNumber, const RandomIt1 &beg, const RandomIt1 &end)
+            bool noiseRemoval(const bool first = true)
             {
-                auto len = end - beg;
-
-                if(len < divisionNumber)
+                bool result;
+                if((this->isNoiseRemoved)&&(first))
                 {
-                    bool out = true;;
-                    for(auto it = beg; it != end; ++it)
+                    std::cout << "VeloFrame already noise removed" << std::endl;
+                    return false;
+                }
+                if(this->noiseRemovalParameter.size() == 3)
+                {
+                    this->noiseRemovalPercentP = this->noiseRemovalParameter[0];
+                    this->noiseRemovalStddevMulThresh = this->noiseRemovalParameter[1];
+                    for(int i = 0; i < this->noiseRemovalParameter[2]; ++i)
                     {
+                        #ifdef VELOFRAME_USE_MULTITHREAD
+                        size_t divisionNumber = myFunction::getDivNum(this->frames.size());
+
+                        result = this->noiseRemovalPart(divisionNumber, this->frames.begin(), this->frames.end());
+                        #else
                         pcl::StatisticalOutlierRemoval<pcl::PointXYZI> sor;
-                        sor.setInputCloud ((*it)->cloud);
-                        sor.setMeanK ((*it)->cloud->points.size() * this->noiseRemovalPercentP);
-                        sor.setStddevMulThresh (this->noiseRemovalStddevMulThresh);
-                        sor.filter (*((*it)->cloud));
+                        for(auto it : this->frames)
+                        {
+                            sor.setInputCloud (it->cloud);
+                            sor.setMeanK (it->cloud->points.size() * this->noiseRemovalPercentP);
+                            sor.setStddevMulThresh (this->noiseRemovalStddevMulThresh);
+                            sor.filter (*(it->cloud));
+                        }
+                        #endif
                     }
-                    return out;
                 }
-
-                auto mid = beg + len/2;
-                auto handle = std::async(std::launch::async, &VeloFrames::noiseRemovalPart<RandomIt1>, this, divisionNumber, beg, mid);
-                auto out1 = VeloFrames::noiseRemovalPart<RandomIt1>(divisionNumber, mid, end);
-                auto out = handle.get();
-
-                return out & out1;
-            }
-
-            bool noiseRemoval()
-            {
-                
-                #ifdef VELOFRAME_USE_MULTITHREAD
-                size_t divisionNumber = myFunction::getDivNum(this->frames.size());
-
-                bool result = this->noiseRemovalPart(divisionNumber, this->frames.begin(), this->frames.end());
-                #else
-                pcl::StatisticalOutlierRemoval<pcl::PointXYZI> sor;
-                for(auto it : this->frames)
+                else if((this->noiseRemovalParameter.size() % 2) == 0)
                 {
-                    sor.setInputCloud (it->cloud);
-                    sor.setMeanK (it->cloud->points.size() * this->noiseRemovalPercentP);
-                    sor.setStddevMulThresh (this->noiseRemovalStddevMulThresh);
-                    sor.filter (*(it->cloud));
-                }
-                #endif
+                    for(int i = 0; i < (this->noiseRemovalParameter.size()-1); ++i)
+                    {
+                        this->noiseRemovalPercentP = this->noiseRemovalParameter[i];
+                        this->noiseRemovalStddevMulThresh = this->noiseRemovalParameter[i+1];
+                        #ifdef VELOFRAME_USE_MULTITHREAD
+                        size_t divisionNumber = myFunction::getDivNum(this->frames.size());
 
+                        result = this->noiseRemovalPart(divisionNumber, this->frames.begin(), this->frames.end());
+                        #else
+                        pcl::StatisticalOutlierRemoval<pcl::PointXYZI> sor;
+                        for(auto it : this->frames)
+                        {
+                            sor.setInputCloud (it->cloud);
+                            sor.setMeanK (it->cloud->points.size() * this->noiseRemovalPercentP);
+                            sor.setStddevMulThresh (this->noiseRemovalStddevMulThresh);
+                            sor.filter (*(it->cloud));
+                        }
+                        #endif
+                    }
+                }
                 for(int i = 0; i < this->frames.size(); ++i)
                 {
                     if(this->frames[i]->cloud->points.size() == 0)
@@ -436,23 +608,23 @@ namespace VeloFrame
 
             void print(const bool showBasicInfo = true) const
             {
-                std::cerr << "pcap : " << this->pcapFilePath.string() << std::endl;
-                std::cerr << "size : " << this->frames.size() << std::endl;
+                std::cout << "pcap : " << this->pcapFilePath.string() << std::endl;
+                std::cout << "size : " << this->frames.size() << std::endl;
                 if(this->isSaved)
                 {
-                    std::cerr << "output : " << this->outputPathWithParameter.string() << std::endl;
+                    std::cout << "output : " << this->outputPathWithParameter.string() << std::endl;
                 }
                 if(!showBasicInfo)
                 {
                     for(int i = 0; i < this->frames.size(); i++)
                     {
-                        std::cerr << "\tcloud " << i << " : "<< std::endl;
-                        std::cerr << "\t\tpoint size : " << this->frames[i]->cloud->points.size() << std::endl;
-                        std::cerr << "\t\tminTimestamp : " << myFunction::durationToString(this->frames[i]->minTimestamp, false)
+                        std::cout << "\tcloud " << i << " : "<< std::endl;
+                        std::cout << "\t\tpoint size : " << this->frames[i]->cloud->points.size() << std::endl;
+                        std::cout << "\t\tminTimestamp : " << myFunction::durationToString(this->frames[i]->minTimestamp, false)
                                     << " (" << this->frames[i]->minTimestamp.count() << ")" << std::endl;
-                        std::cerr << "\t\tmidTimestamp : " << myFunction::durationToString(this->frames[i]->midTimestamp, false)
+                        std::cout << "\t\tmidTimestamp : " << myFunction::durationToString(this->frames[i]->midTimestamp, false)
                                     << " (" << this->frames[i]->midTimestamp.count() << ")" << std::endl;
-                        std::cerr << "\t\tmaxTimestamp : " << myFunction::durationToString(this->frames[i]->maxTimestamp, false)
+                        std::cout << "\t\tmaxTimestamp : " << myFunction::durationToString(this->frames[i]->maxTimestamp, false)
                                     << " (" << this->frames[i]->maxTimestamp.count() << ")" << std::endl;
                     }
                 }
@@ -468,15 +640,19 @@ namespace VeloFrame
                 if(len1 < divisionNumber)
                 {
                     bool out = true;
+                    long long minTimestamp;
+                    long long midTimestamp;
+                    long long maxTimestamp;
                     pcl::PointXYZI point;
+                    boost::shared_ptr<pcl::PointCloud<pcl::PointXYZI>> cloud;
                     auto it2 = beg2;
                     for(auto it1 = beg1; it1 != end1; ++it1,++it2)
                     {
-                        long long minTimestamp = std::numeric_limits<long long>::max();
-                        long long midTimestamp = 0;
-                        long long maxTimestamp = std::numeric_limits<long long>::min();
-                        (*it2).reset(new VeloFrame());
-                        (*it2)->cloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
+                        minTimestamp = std::numeric_limits<long long>::max();
+                        midTimestamp = 0;
+                        maxTimestamp = std::numeric_limits<long long>::min();
+
+                        cloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
 
                         for( const velodyne::Laser& laser : (**it1) ){
                             const double distance = static_cast<double>( laser.distance );
@@ -500,13 +676,19 @@ namespace VeloFrame
                                 point.z = std::numeric_limits<float>::quiet_NaN();
                             }
                         
-                            (*it2)->cloud->points.push_back(point);
+                            cloud->points.push_back(point);
                         }
+
+                        if((minTimestamp < this->begTime.count())&&(minTimestamp > this->endTime.count())) continue;
+
+                        cloud->width = static_cast<uint32_t>(cloud->points.size());
+                        cloud->height = 1;
+
+                        (*it2).reset(new VeloFrame());
+                        (*it2)->cloud = cloud;
                         (*it2)->minTimestamp = std::chrono::microseconds(minTimestamp);
                         (*it2)->midTimestamp = std::chrono::microseconds(midTimestamp);
                         (*it2)->maxTimestamp = std::chrono::microseconds(maxTimestamp);
-                        (*it2)->cloud->width = (int) (*it2)->cloud->points.size();
-                        (*it2)->cloud->height = 1;
                     }
                     return out;
                 }
@@ -526,13 +708,13 @@ namespace VeloFrame
 
                 if(!vlp16.open(this->pcapFilePath.string()))
                 {
-                    std::cerr << std::endl << "Error : load " << this->pcapFilePath << " failed" << std::endl;
+                    std::cout << std::endl << "Error : load " << this->pcapFilePath << " failed" << std::endl;
                     return false;
                 }
 
                 if(!vlp16.isOpen())
                 {
-                    std::cerr << std::endl << "Error : load " << this->pcapFilePath << " failed" << std::endl;
+                    std::cout << std::endl << "Error : load " << this->pcapFilePath << " failed" << std::endl;
                     return false;
                 }
 
@@ -553,9 +735,24 @@ namespace VeloFrame
                 size_t divisionNumber = myFunction::getDivNum(f.size());
 
                 bool result = this->loadFromPcapPart(divisionNumber, f.begin(), f.end(), this->frames.begin(), this->frames.end());
+                
+                for(int i = 0; i < this->frames.size(); ++i)
+                {
+                    if(this->frames[i] == NULL)
+                    {
+                        this->frames.erase(this->frames.begin() + i);
+                        --i;
+                        continue;
+                    }
+                }
+                
                 #else
                 boost::shared_ptr<VeloFrame> frame;
+                long long minTimestamp;
+                long long midTimestamp;
+                long long maxTimestamp;
                 pcl::PointXYZI point;
+                boost::shared_ptr<pcl::PointCloud<pcl::PointXYZI>> cloud;
                 while(vlp16.isRun())
                 {
                     std::vector<velodyne::Laser> lasers;
@@ -564,11 +761,11 @@ namespace VeloFrame
                         continue;
                     }
 
-                    long long minTimestamp = std::numeric_limits<long long>::max();
-                    long long midTimestamp = 0;
-                    long long maxTimestamp = std::numeric_limits<long long>::min();
-                    frame.reset(new VeloFrame);
-                    frame->cloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
+                    minTimestamp = std::numeric_limits<long long>::max();
+                    midTimestamp = 0;
+                    maxTimestamp = std::numeric_limits<long long>::min();
+
+                    cloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
 
                     for( const velodyne::Laser& laser : lasers ){
                         const double distance = static_cast<double>( laser.distance );
@@ -578,7 +775,6 @@ namespace VeloFrame
                         minTimestamp = std::min(laser.time, minTimestamp);
                         maxTimestamp = std::max(laser.time, maxTimestamp);
                         midTimestamp = (maxTimestamp - minTimestamp)/2 + minTimestamp;
-
 
                         point.x = static_cast<float>( ( distance * std::cos( vertical ) ) * std::sin( azimuth ) );
                         point.y = static_cast<float>( ( distance * std::cos( vertical ) ) * std::cos( azimuth ) );
@@ -592,13 +788,19 @@ namespace VeloFrame
                             point.z = std::numeric_limits<float>::quiet_NaN();
                         }
                     
-                        frame->cloud->points.push_back(point);
+                        cloud->points.push_back(point);
                     }
+                    if((minTimestamp < this->begTime.count())&&(minTimestamp > this->endTime.count())) continue;
+                    
+                    cloud->width = static_cast<uint32_t>(cloud->points.size());
+                    cloud->height = 1;
+
+                    frame.reset(new VeloFrame());
+                    frame->cloud = cloud;
+                    
                     frame->minTimestamp = std::chrono::microseconds(minTimestamp);
                     frame->midTimestamp = std::chrono::microseconds(midTimestamp);
                     frame->maxTimestamp = std::chrono::microseconds(maxTimestamp);
-                    frame->cloud->width = (int) frame->cloud->points.size();
-                    frame->cloud->height = 1;
                     this->frames.push_back(frame);
                 }
                 #endif
@@ -621,6 +823,8 @@ namespace VeloFrame
                         std::vector<std::string> ss;
                         boost::filesystem::path cloudPath = this->outputPath;
                         boost::split(ss, *it1, boost::is_any_of("&"));
+
+                        if((std::stoll(ss[0]) < this->begTime.count())&&(std::stoll(ss[0]) > this->endTime.count())) continue;
 
                         (*it2).reset(new VeloFrame());
                         (*it2)->cloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
@@ -649,7 +853,11 @@ namespace VeloFrame
 
                 if(!boost::filesystem::exists(configPath))
                 {
-                    throw VeloFrameException(boost::filesystem::absolute(configPath).string() + " not found");
+                    std::stringstream ss;
+                    ss << "VeloFrame::VeloFrames::loadFromFolder, ";
+                    ss << boost::filesystem::absolute(configPath).string();
+                    ss << " not found.";
+                    throw VeloFrameException(ss.str());
                     return false;
                 }
 
@@ -694,6 +902,17 @@ namespace VeloFrame
                 size_t divisionNumber = myFunction::getDivNum(f.size());
 
                 bool result = this->loadFromFolderPart(divisionNumber, f.begin(), f.end(), this->frames.begin(), this->frames.end());
+                
+                for(int i = 0; i < this->frames.size(); ++i)
+                {
+                    if(this->frames[i] == NULL)
+                    {
+                        this->frames.erase(this->frames.begin() + i);
+                        --i;
+                        continue;
+                    }
+                }
+                
                 #else
                 auto it2 = this->frames.begin();
                 for(auto it1 : f)
@@ -701,6 +920,8 @@ namespace VeloFrame
                     std::vector<std::string> ss;
                     boost::filesystem::path cloudPath = this->outputPath;
                     boost::split(ss, it1, boost::is_any_of("&"));
+
+                    if((std::stoll(ss[0]) < this->begTime.count())&&(std::stoll(ss[0]) > this->endTime.count())) continue;
 
                     (*it2).reset(new VeloFrame());
                     (*it2)->cloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
@@ -743,6 +964,56 @@ namespace VeloFrame
                 return out & out1;
             }
 
+	        template<typename RandomIt1>
+            bool backgroundSegmentationPart(const size_t &divisionNumber, const myClass::backgroundSegmentation<pcl::PointXYZI> backgroundSegmentation, const RandomIt1 &beg, const RandomIt1 &end)
+            {
+                auto len = end - beg;
+
+                if(len < divisionNumber)
+                {
+                    bool out = true;;
+                    for(auto it = beg; it != end; ++it)
+                    {
+                        (*it)->cloud = backgroundSegmentation.compute((*it)->cloud);
+                    }
+                    return out;
+                }
+
+                auto mid = beg + len/2;
+                auto handle = std::async(std::launch::async, &VeloFrames::backgroundSegmentationPart<RandomIt1>, this, divisionNumber, backgroundSegmentation, beg, mid);
+                auto out1 = VeloFrames::backgroundSegmentationPart<RandomIt1>(divisionNumber, backgroundSegmentation, mid, end);
+                auto out = handle.get();
+
+                return out & out1;
+            }
+
+	        template<typename RandomIt1>
+            bool noiseRemovalPart(const size_t &divisionNumber, const RandomIt1 &beg, const RandomIt1 &end)
+            {
+                auto len = end - beg;
+
+                if(len < divisionNumber)
+                {
+                    bool out = true;;
+                    for(auto it = beg; it != end; ++it)
+                    {
+                        pcl::StatisticalOutlierRemoval<pcl::PointXYZI> sor;
+                        sor.setInputCloud ((*it)->cloud);
+                        sor.setMeanK ((*it)->cloud->points.size() * this->noiseRemovalPercentP);
+                        sor.setStddevMulThresh (this->noiseRemovalStddevMulThresh);
+                        sor.filter (*((*it)->cloud));
+                    }
+                    return out;
+                }
+
+                auto mid = beg + len/2;
+                auto handle = std::async(std::launch::async, &VeloFrames::noiseRemovalPart<RandomIt1>, this, divisionNumber, beg, mid);
+                auto out1 = VeloFrames::noiseRemovalPart<RandomIt1>(divisionNumber, mid, end);
+                auto out = handle.get();
+
+                return out & out1;
+            }
+
     };
 
     class VeloFrameViewer : protected pcl::visualization::PCLVisualizer
@@ -761,7 +1032,7 @@ namespace VeloFrame
             boost::function<void (const pcl::visualization::KeyboardEvent&, void*)> externalKeyboardEventOccurred;
 
         public:
-            VeloFrameViewer():pcl::visualization::PCLVisualizer()
+            VeloFrameViewer() : pcl::visualization::PCLVisualizer()
             {
                 this->pause = false;
                 this->showBackground = false;
@@ -846,27 +1117,27 @@ namespace VeloFrame
             {
                 if(event.isCtrlPressed())
                 {
-                    if((event.getKeySym() == "b")&&(event.keyDown()))
+                    if(((event.getKeySym() == "b")||(event.getKeySym() == "B"))&&(event.keyDown()))
                     {
-                            this->showBackground = !this->showBackground;
-                            std::cerr << "showBackground: " << ((this->showBackground == true)? "ON" : "OFF") << std::endl;
+                        this->showBackground = !this->showBackground;
+                        std::cout << "showBackground: " << ((this->showBackground == true)? "ON" : "OFF") << std::endl;
                     }
                     else if((event.getKeySym() == "space")&&(event.keyDown()))
                     {
                         this->realTime = !this->realTime;
-                        std::cerr << "realTime: " << ((this->realTime == true)? "ON" : "OFF") << std::endl;
+                        std::cout << "realTime: " << ((this->realTime == true)? "ON" : "OFF") << std::endl;
                     }
-                    else if((event.getKeySym() == "KP_Add")&&(event.keyDown()))
+                    else if((event.getKeySym() == "Up")&&(event.keyDown()))
                     {
                         if(this->playSpeedRate < 10.0) this->playSpeedRate += 0.25;
                         this->startTimeReset = true;
-                        std::cerr << "playSpeedRate: " << this->playSpeedRate << std::endl;
+                        std::cout << "playSpeedRate: " << this->playSpeedRate << std::endl;
                     }
-                    else if((event.getKeySym() == "KP_Subtract")&&(event.keyDown()))
+                    else if((event.getKeySym() == "Down")&&(event.keyDown()))
                     {
                         if(this->playSpeedRate > 0.25) this->playSpeedRate -= 0.25;
                         this->startTimeReset = true;
-                        std::cerr << "playSpeedRate: " << this->playSpeedRate << std::endl;
+                        std::cout << "playSpeedRate: " << this->playSpeedRate << std::endl;
                     }
                     else
                     {
@@ -878,7 +1149,7 @@ namespace VeloFrame
                     if((event.getKeySym() == "space")&&(event.keyDown()))
                     {
                         this->pause = !this->pause;
-                        std::cerr << "viewer_pause: " << ((this->pause == true)? "ON" : "OFF") << std::endl;
+                        std::cout << "viewer_pause: " << ((this->pause == true)? "ON" : "OFF") << std::endl;
                     }
                     else if((event.getKeySym() == "KP_Add")&&(event.keyDown()))
                     {
@@ -888,14 +1159,27 @@ namespace VeloFrame
                     {
                         if(this->pointSize > 1.0) this->pointSize -= 0.5;
                     }
+                    else if(((event.getKeySym() == "h")||(event.getKeySym() == "H"))&&(event.keyDown()))
+                    {
+                        std::cout << std::endl;
+                        std::cout << "\033[1;33m";  //yellow
+                        std::cout << "| VeloFrameViewer added:" << std::endl;
+                        std::cout << "\033[0m";     //default color
+                        std::cout << "-------         " << std::endl;
+                        std::cout << "    CTRL + b, B " << " : show background (on/off)" << std::endl;
+                        std::cout << "    CTRL + space" << " : switch between real-time play and play as fast as possible (on/off)" << std::endl;
+                        std::cout << "    CTRL + Up   " << " : play speed rate +0.25 (max 10.0x)" << std::endl;
+                        std::cout << "    CTRL + Down " << " : play speed rate -0.25 (min 0.25x)" << std::endl;
+                        std::cout << "    space       " << " : switch between play and pause" << std::endl;
+                        std::cout << "    KP_Add      " << " : point size +0.5 (max 10)" << std::endl;
+                        std::cout << "    KP_Substract" << " : point size -0.5 (min 1)" << std::endl;
+                    }
                     else
                     {
                         this->externalKeyboardEventOccurred(event, nothing);
                     }
                 }
-
             }
-
     };
 }
 

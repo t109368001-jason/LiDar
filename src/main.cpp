@@ -25,21 +25,83 @@ args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
 
 args::Group requirementGroup(parser, "This group is all required:", args::Group::Validators::All);
     args::ValueFlag<std::string> inputPcap(requirementGroup, "inputPcap", "input pcap", {"pcap"});
+    args::ValueFlag<std::string> inputBackground(requirementGroup, "inputBackground", "input background", {"back"});
 args::Group dontCareGroup(parser, "This group is dont care:", args::Group::Validators::DontCare);
-    args::ValueFlag<std::string> inputBackground(dontCareGroup, "inputBackground", "input background", {"back"});
+    args::ValueFlag<double> backgroundSeg(dontCareGroup, "backgroundSeg", "Enable background segmentation", {"bs", "background_segmentation"});
+    args::ValueFlagList<double> noiseRemoval(dontCareGroup, "noiseRemoval", "Enable noise removal", {"nr", "noise_removal"});
+    args::Flag output(dontCareGroup, "output", "output", {'o', "output"});
+    args::Flag outputAll(dontCareGroup, "outputAll", "output all", {"oa", "outputAll"});
 
 void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing)
 {
     if(event.keyDown())
     {
-        std::cerr << "Keyboard pressed: " << ((event.isAltPressed())? "Alt + " : "") << ((event.isCtrlPressed())? "Ctrl + " : "") << ((event.isShiftPressed())? "Shift + " : "") << event.getKeySym() << std::endl;
+        std::cout << "Keyboard pressed: " << ((event.isAltPressed())? "Alt + " : "") << ((event.isCtrlPressed())? "Ctrl + " : "") << ((event.isShiftPressed())? "Shift + " : "") << event.getKeySym() << std::endl;
     }
 }
+
 int main(int argc, char * argv[])
 {
+    myClass::MicroStopwatch tt("main");
+    VeloFrame::VeloFrames veloFrames;
+    boost::shared_ptr<VeloFrame::VeloFrameViewer> veloFrameViewer;
+
     try
     {
         parser.ParseCLI(argc, argv);
+        
+        boost::filesystem::path pcapPath{args::get(inputPcap)};
+        boost::filesystem::path backgroundPath{args::get(inputBackground)};
+
+
+        veloFrames.setPcapFile(pcapPath);
+        veloFrames.setBackgroundCloud(backgroundPath);
+        veloFrames.setBackgroundSegmentationResolution(args::get(backgroundSeg));
+        veloFrames.setNoiseRemovalParameter(args::get(noiseRemoval));
+
+        std::cout << "Loading...";tt.tic();
+        veloFrames.load(pcapPath.parent_path().string());
+        std::cout << " >> Done: " << tt.toc_string() << " us\n";
+
+        if(outputAll)
+        {
+            std::cout << "Saving...", tt.tic();
+            veloFrames.save(pcapPath.parent_path().string());
+            std::cout << " >> Done: " << tt.toc_string() << " us\n";
+        }
+
+        if(backgroundSeg)
+        {
+            std::cout << "Background segmentation...", tt.tic();
+            veloFrames.backgroundSegmentation();
+            std::cout << " >> Done: " << tt.toc_string() << " us\n";
+        }
+
+        if(outputAll)
+        {
+            std::cout << "Saving...", tt.tic();
+            veloFrames.save(pcapPath.parent_path().string());
+            std::cout << " >> Done: " << tt.toc_string() << " us\n";
+        }
+
+        if(noiseRemoval)
+        {
+            std::cout << "Noise removal...", tt.tic();
+            veloFrames.noiseRemoval();
+            std::cout << " >> Done: " << tt.toc_string() << " us\n";
+        }
+
+        if(output||outputAll)
+        {
+            std::cout << "Saving...", tt.tic();
+            veloFrames.save(pcapPath.parent_path().string());
+            std::cout << " >> Done: " << tt.toc_string() << " us\n";
+        }
+
+        veloFrameViewer.reset(new VeloFrame::VeloFrameViewer);
+        veloFrameViewer->registerKeyboardCallback(keyboardEventOccurred);
+        veloFrameViewer->addFrames(veloFrames);
+        veloFrameViewer->run();
     }
     catch (args::Help)
     {
@@ -48,78 +110,20 @@ int main(int argc, char * argv[])
     }
     catch (args::ParseError e)
     {
-        std::cerr << e.what() << std::endl;
-        parser.Help(std::cerr);
+        std::cout << e.what() << std::endl;
+        parser.Help(std::cout);
         return 1;
     }
     catch (args::ValidationError e)
     {
-        std::cerr << e.what() << std::endl;
-        parser.Help(std::cerr);
+        std::cout << e.what() << std::endl;
+        parser.Help(std::cout);
         return 1;
-    }
-
-    myClass::MicroStopwatch tt("main");
-    VeloFrame::VeloFrames veloFrames;
-    boost::shared_ptr<VeloFrame::VeloFrameViewer> veloFrameViewer;
-    boost::filesystem::path pcapPath{args::get(inputPcap)};
-
-    boost::shared_ptr<pcl::PointCloud<pcl::PointXYZI>> cloud(new pcl::PointCloud<pcl::PointXYZI>);
-
-    pcl::io::loadPCDFile(args::get(inputBackground), *cloud);
-    try
-    {
-        veloFrames.setPcapFile(pcapPath.string());
-        veloFrames.setBackgroundSegmentationResolution(10);
-        veloFrames.setBackgroundCloud(cloud);
-        veloFrames.setNoiseRemovalPercentP(0.01);
-        veloFrames.setNoiseRemovalStddevMulThresh(0.01);
-
-        std::cerr << "Loading...", tt.tic();
-        //veloFrames.load();
-        veloFrames.load(pcapPath.parent_path().string());
-        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-        
-        std::cerr << "Background segmentation...", tt.tic();
-        veloFrames.backgroundSegmentation();
-        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-
-        veloFrames.print();
-        
-        veloFrameViewer.reset(new VeloFrame::VeloFrameViewer);
-        veloFrameViewer->registerKeyboardCallback(keyboardEventOccurred);
-        veloFrameViewer->addFrames(veloFrames);
-        veloFrameViewer->run();
-
-        return 0;
-/*
-        std::cerr << "Saving...", tt.tic();
-        veloFrames.save(pcapPath.parent_path().string());
-        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-        
-        std::cerr << "Background segmentation...", tt.tic();
-        veloFrames.backgroundSegmentation();
-        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-        
-        std::cerr << "Saving...", tt.tic();
-        veloFrames.save(pcapPath.parent_path().string());
-        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-        
-        std::cerr << "Noise removal...", tt.tic();
-        veloFrames.noiseRemoval();
-        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-        
-        std::cerr << "Saving...", tt.tic();
-        veloFrames.save(pcapPath.parent_path().string());
-        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-        
-        veloFrames.print();
-*/
-
     }
     catch(VeloFrame::VeloFrameException &e)
     {
         std::cout << e.message() << std::endl;
+        return 1;
     }
 
     return 0;

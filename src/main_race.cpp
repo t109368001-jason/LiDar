@@ -102,17 +102,17 @@ void pcl_viewer()
     {
         if(objectSeg)
         {
-            std::cerr << "Error: No full cloud to object sehmentation" << std::endl;
+            std::cout << "Error: No full cloud to object sehmentation" << std::endl;
             return;
         }
         if(output_full_cloud)
         {
-            std::cerr << "Error: No full cloud to save" << std::endl;
+            std::cout << "Error: No full cloud to save" << std::endl;
             return;
         }
         if(!input_objects_cloud)
         {
-            std::cerr << "Error: Nothing to do" << std::endl;
+            std::cout << "Error: Nothing to do" << std::endl;
             return;
         }
     }
@@ -120,7 +120,7 @@ void pcl_viewer()
     {
         if(objectSeg)
         {
-            std::cerr << "Error: Objects is already input" << std::endl;
+            std::cout << "Error: Objects is already input" << std::endl;
             return;
         }
     }
@@ -145,7 +145,7 @@ void pcl_viewer()
     }
     else
     {
-        std::cerr << "No data output" << std::endl;
+        std::cout << "No data output" << std::endl;
     }
 
     if(!myFunction::fileExists(output_path))
@@ -161,12 +161,12 @@ void pcl_viewer()
     {
         if(!myFunction::fileExists(bag_path))
         {
-            std::cerr << "bag file " << bag_path << " not found" << std::endl;
+            std::cout << "bag file " << bag_path << " not found" << std::endl;
             return;
         }
         if(!myFunction::fileExists(darknet_txt_path))
         {
-            std::cerr << "darknet txt file " << darknet_txt_path << " not found" << std::endl;
+            std::cout << "darknet txt file " << darknet_txt_path << " not found" << std::endl;
             return;
         }
     }
@@ -191,7 +191,7 @@ void pcl_viewer()
         }
         if(!myFunction::fileExists(input_path))
         {
-            std::cerr << "input path not found" << std::endl;
+            std::cout << "input path not found" << std::endl;
             return;
         }
         if(output_path == "")
@@ -204,14 +204,14 @@ void pcl_viewer()
     {
         if(!myFunction::fileExists(background_cloud_path))
         {
-            std::cerr << "background cloud file not found" << std::endl;
+            std::cout << "background cloud file not found" << std::endl;
             return;
         }
     }
 
     if((output_path == input_path)&&(outputOnlyFullCloud||outputOnlyObjectCloud||outputAll))
     {
-        std::cerr << "output path = input path, continue?(y / n):";
+        std::cout << "output path = input path, continue?(y / n):";
         char choise;
         cin >> choise;
         if((choise == 'n')&&(choise == 'N')) 
@@ -223,7 +223,7 @@ void pcl_viewer()
 #pragma endregion check_file_and_path
 
 #pragma region load ///////////////////////////////////////
-    std::cerr << "Loading...", tt.tic();
+    std::cout << "Loading...", tt.tic();
     if(inputBag)
     {  
         boost::filesystem::path path_to_remove(txt_path);
@@ -262,17 +262,17 @@ void pcl_viewer()
     {
         if(pcl::io::loadPCDFile(background_cloud_path, *backgroundCloud) == -1)
         {
-            std::cerr << "Load background_cloud_path error" << std::endl;
+            std::cout << "Load background_cloud_path error" << std::endl;
         }
         backgroundCloud_view = myFunction::XYZ_to_XYZRGB<PointT>(backgroundCloud, true);
         auto_name << "[bg=";
         auto_name << boost::filesystem::path{background_cloud_path}.filename().stem().string();
         auto_name << "]";
     }
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << "Total frame : " << customFrames.size();
-    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
-    std::cerr << '\n';
+    std::cout << " >> Done: " << tt.toc_string() << " us\n";
+    std::cout << "Total frame : " << customFrames.size();
+    std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cout << '\n';
     ////////////////////////////////////////////////////////////////*/
 #pragma endregion load
 
@@ -281,7 +281,7 @@ void pcl_viewer()
     {
         if(objectSeg)
         {    
-            std::cerr << "Custom frames object segmentation...", tt.tic();
+            std::cout << "Custom frames object segmentation...", tt.tic();
 
             double w = 1280.0;
             double h = 720.0;
@@ -290,17 +290,17 @@ void pcl_viewer()
             double scale = args::get(objectSeg);
             myFrame::objectSegmentationCustomFrames(txt_path, object_segmentation, customFrames, scale);
 
-            std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-            std::cerr << "Total frame : " << customFrames.size();
-            std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
-            std::cerr << '\n';
+            std::cout << " >> Done: " << tt.toc_string() << " us\n";
+            std::cout << "Total frame : " << customFrames.size();
+            std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+            std::cout << '\n';
             auto_name << "[os=";
             auto_name << scale;
             auto_name << "]";
         }
         if(backgroundSeg)
         {
-            std::cerr << "Custom frames background segmentation...", tt.tic();
+            std::cout << "Custom frames background segmentation...", tt.tic();
 
             double resolution = args::get(backgroundSeg);
 
@@ -314,10 +314,10 @@ void pcl_viewer()
             {
                 myFrame::backgroundSegmentationCustomFrames(background_segmentation, customFrames);
             }
-            std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-            std::cerr << "Total frame : " << customFrames.size();
-            std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
-            std::cerr << '\n';
+            std::cout << " >> Done: " << tt.toc_string() << " us\n";
+            std::cout << "Total frame : " << customFrames.size();
+            std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+            std::cout << '\n';
             auto_name << "[bs=";
             auto_name << resolution;
             auto_name << "]";
@@ -332,7 +332,7 @@ void pcl_viewer()
             percentP = pp[0];
             StddevMulThresh = pp[1];
 
-            std::cerr << "Custom frames noise removal...", tt.tic();
+            std::cout << "Custom frames noise removal...", tt.tic();
 
             for(int i = 0; i < customFrames.size(); i++)
             {
@@ -345,10 +345,10 @@ void pcl_viewer()
 
             myFrame::noiseRemovalCustomFrameYoloObjects(customFrames, percentP, StddevMulThresh);
 
-            std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-            std::cerr << "Total frame : " << customFrames.size();
-            std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
-            std::cerr << '\n';
+            std::cout << " >> Done: " << tt.toc_string() << " us\n";
+            std::cout << "Total frame : " << customFrames.size();
+            std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+            std::cout << '\n';
             auto_name << "[nr=";
             auto_name << percentP;
             auto_name << "_";
@@ -362,12 +362,12 @@ void pcl_viewer()
 #pragma region save ///////////////////////////////////////
     if(outputOnlyFullCloud|outputOnlyObjectCloud|outputAll)
     {
-        std::cerr << "Saving...", tt.tic();
+        std::cout << "Saving...", tt.tic();
         myFrame::saveCustomFrames(output_path, customFrames, true, !output_full_cloud, !output_objects_cloud);
-        std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-        std::cerr << "Total frame : " << customFrames.size();
-        std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
-        std::cerr << '\n';
+        std::cout << " >> Done: " << tt.toc_string() << " us\n";
+        std::cout << "Total frame : " << customFrames.size();
+        std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+        std::cout << '\n';
         if((myFunction::fileExists(auto_name.str()))&&(auto_name.str() != input_path))
         {
             boost::filesystem::path path_to_remove(auto_name.str());
@@ -380,7 +380,7 @@ void pcl_viewer()
         command << "mv data/ " << auto_name.str();
         system(command.str().c_str());
         output_path = auto_name.str();
-        std::cerr << "save data to : " << auto_name.str() << std::endl;
+        std::cout << "save data to : " << auto_name.str() << std::endl;
     }
     if(myFunction::fileExists(txt_path))
     {
@@ -408,7 +408,7 @@ void pcl_viewer()
 #pragma region save_video ///////////////////////////////////////
     if(saveAsVideo)
     {
-        std::cerr << "Video saving...", tt.tic();
+        std::cout << "Video saving...", tt.tic();
         std::string video_path = output_path + "/video/";
         mkdir(video_path.c_str(), 0777);
         video_path = video_path + auto_name.str() + '/';
@@ -501,7 +501,7 @@ void pcl_viewer()
                 mkdir("background/", 0777);
             }
             pcl::io::savePCDFileBinaryCompressed(back_file, *(customFrames[play_count]->full_cloud));
-            std::cerr << "background saved : " << back_file << std::endl;
+            std::cout << "background saved : " << back_file << std::endl;
             save_pcd = false;
         }
         if(show_background != show_background_status)
@@ -520,27 +520,27 @@ void pcl_viewer()
     }
 
     /*///////// load from data directory //////////////////////////////////////////////////////
-    std::cerr << "load custom frames...", tt.tic();
+    std::cout << "load custom frames...", tt.tic();
 
     myFrame::loadCustomFrames(data_dir, customFrames, false);
 
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << "Total frame : " << customFrames.size();
-    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cout << " >> Done: " << tt.toc_string() << " us\n";
+    std::cout << "Total frame : " << customFrames.size();
+    std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     ////////////////////////////////////////////////////////////////*/
 
     /*///////// custom frames background segmentation //////////////////////////////////////////////////////
     double resolution;
     cout << "Please input background segmentation resolution: "; 
     cin >> resolution;
-    std::cerr << "Point cloud background segmentation...", tt.tic();
+    std::cout << "Point cloud background segmentation...", tt.tic();
     background_segmentation.setBackground(backgroundCloud, resolution, true);
 
     myFrame::backgroundSegmentationCustomFrames(background_segmentation, customFrames);
 
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << "Total frame : " << customFrames.size();
-    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cout << " >> Done: " << tt.toc_string() << " us\n";
+    std::cout << "Total frame : " << customFrames.size();
+    std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     ////////////////////////////////////////////////////////////////*/
     
     /*///////// custom frames noise removal //////////////////////////////////////////////////////
@@ -550,41 +550,41 @@ void pcl_viewer()
     cin >> meanK;
     cout << "Please input noise removal StddevMulThresh: "; 
     cin >> StddevMulThresh;
-    std::cerr << "custom frames noise removal...", tt.tic();
+    std::cout << "custom frames noise removal...", tt.tic();
 
     myFrame::noiseRemovalCustomFrames(customFrames, meanK, StddevMulThresh);
 
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << "Total frame : " << customFrames.size();
-    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cout << " >> Done: " << tt.toc_string() << " us\n";
+    std::cout << "Total frame : " << customFrames.size();
+    std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     ////////////////////////////////////////////////////////////////*/
 
     /*///////// custom frames object segmentation //////////////////////////////////////////////////////
-    std::cerr << "Custom frames object segmentation...", tt.tic();
+    std::cout << "Custom frames object segmentation...", tt.tic();
     double w = 1280.0;
     double h = 720.0;
     object_segmentation.setCameraParameter("UL", w, h, 89.7974 * M_PI / 180.0, 69.4 * M_PI / 180.0, -0.03);
     
     myFrame::objectSegmentationCustomFrames(tmp_dir, object_segmentation, customFrames, 1.5);
 
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << "Total frame : " << customFrames.size();
-    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
-    std::cerr << '\n';
+    std::cout << " >> Done: " << tt.toc_string() << " us\n";
+    std::cout << "Total frame : " << customFrames.size();
+    std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cout << '\n';
     ////////////////////////////////////////////////////////////////*/
 
     /*///////// custom frames background segmentation //////////////////////////////////////////////////////
     double resolution;
     cout << "Please input background segmentation resolution: "; 
     cin >> resolution;
-    std::cerr << "Point cloud background segmentation...", tt.tic();
+    std::cout << "Point cloud background segmentation...", tt.tic();
     background_segmentation.setBackground(backgroundCloud, resolution, true);
 
     myFrame::backgroundSegmentationCustomFrameYoloObjects(background_segmentation, customFrames);
 
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << "Total frame : " << customFrames.size();
-    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cout << " >> Done: " << tt.toc_string() << " us\n";
+    std::cout << "Total frame : " << customFrames.size();
+    std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     ////////////////////////////////////////////////////////////////*/
     
     /*///////// custom frames noise removal //////////////////////////////////////////////////////
@@ -596,35 +596,35 @@ void pcl_viewer()
     if(percentP < 0.0) percentP = 0.0;
     cout << "Please input noise removal StddevMulThresh: "; 
     cin >> StddevMulThresh;
-    std::cerr << "custom frames noise removal...", tt.tic();
+    std::cout << "custom frames noise removal...", tt.tic();
 
     myFrame::noiseRemovalCustomFrameYoloObjects(customFrames, percentP, StddevMulThresh);
 
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << "Total frame : " << customFrames.size();
-    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cout << " >> Done: " << tt.toc_string() << " us\n";
+    std::cout << "Total frame : " << customFrames.size();
+    std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     ////////////////////////////////////////////////////////////////*/
 
     /*///////// save to data directory //////////////////////////////////////////////////////
-    std::cerr << "save custom frames...", tt.tic();
+    std::cout << "save custom frames...", tt.tic();
 
     myFrame::saveCustomFrames(data_dir, customFrames);
 
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << "Total frame : " << customFrames.size();
-    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
-    std::cerr << '\n';
+    std::cout << " >> Done: " << tt.toc_string() << " us\n";
+    std::cout << "Total frame : " << customFrames.size();
+    std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cout << '\n';
     return;
     ////////////////////////////////////////////////////////////////*/
     
     /*///////// load from data directory //////////////////////////////////////////////////////
-    std::cerr << "load custom frames...", tt.tic();
+    std::cout << "load custom frames...", tt.tic();
 
     myFrame::loadCustomFrames(data_dir, customFrames, true);
 
-    std::cerr << " >> Done: " << tt.toc_string() << " us\n";
-    std::cerr << "Total frame : " << customFrames.size();
-    std::cerr << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
+    std::cout << " >> Done: " << tt.toc_string() << " us\n";
+    std::cout << "Total frame : " << customFrames.size();
+    std::cout << "\tprocess speed : " << customFrames.size() / (tt.toc_pre() / 1000000.0) << " FPS" << std::endl;
     ////////////////////////////////////////////////////////////////*/
 
     //std::chrono::milliseconds start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-std::chrono::time_point<std::chrono::system_clock>(std::chrono::milliseconds(int64_t(0))));
@@ -635,8 +635,8 @@ void pcl_viewer()
     auto i = depth_stream.get_intrinsics();
     float fov[2]; // X, Y fov
     rs2_fov(&i, fov);
-    std::cerr << "fx" << fov[0] << std::endl;
-    std::cerr << "fy" << fov[1] << std::endl;
+    std::cout << "fx" << fov[0] << std::endl;
+    std::cout << "fy" << fov[1] << std::endl;
     ////////////////////////////////////////////////////////////////*/
 
 }
@@ -654,14 +654,14 @@ int main(int argc, char * argv[])
     }
     catch (args::ParseError e)
     {
-        std::cerr << e.what() << std::endl;
-        parser.Help(std::cerr);
+        std::cout << e.what() << std::endl;
+        parser.Help(std::cout);
         return 1;
     }
     catch (args::ValidationError e)
     {
-        std::cerr << e.what() << std::endl;
-        parser.Help(std::cerr);
+        std::cout << e.what() << std::endl;
+        parser.Help(std::cout);
         return 1;
     }
 
@@ -679,7 +679,7 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void*
             if(inputBagBackground)
             {
                 show_background = !show_background;
-                std::cerr << "Background: " << ((show_background == true)? "ON" : "OFF") << std::endl;
+                std::cout << "Background: " << ((show_background == true)? "ON" : "OFF") << std::endl;
             }
         }
         else if((event.getKeySym() == "p")&&(event.keyDown()))
@@ -691,34 +691,34 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void*
             if(!(inputOnlyFullCloud & (!objectSeg)))
             {
                 show_full_cloud = !show_full_cloud;
-                std::cerr << "show_full_cloud: " << ((show_full_cloud == true)? "ON" : "OFF") << std::endl;
+                std::cout << "show_full_cloud: " << ((show_full_cloud == true)? "ON" : "OFF") << std::endl;
             }
         }
         else if((event.getKeySym() == "n")&&(event.keyDown()))
         {
             switch_cloud = true;
-            std::cerr << "switch_cloud" << std::endl;
+            std::cout << "switch_cloud" << std::endl;
         }
         else if((event.getKeySym() == "space")&&(event.keyDown()))
         {
             real_time = !real_time;
-            std::cerr << "real_time: " << ((real_time == true)? "ON" : "OFF") << std::endl;
+            std::cout << "real_time: " << ((real_time == true)? "ON" : "OFF") << std::endl;
         }
         else if((event.getKeySym() == "KP_Add")&&(event.keyDown()))
         {
             if(play_speed < max_play_speed) play_speed += play_speed_step;
             start_time_fix = true;
-            std::cerr << "play_speed: " << play_speed << std::endl;
+            std::cout << "play_speed: " << play_speed << std::endl;
         }
         else if((event.getKeySym() == "KP_Subtract")&&(event.keyDown()))
         {
             if(play_speed > min_play_speed) play_speed -= play_speed_step;
             start_time_fix = true;
-            std::cerr << "play_speed: " << play_speed << std::endl;
+            std::cout << "play_speed: " << play_speed << std::endl;
         }
         else if(event.keyDown())
         {
-            std::cerr << "Keyboard pressed: \" Ctrl + " << event.getKeySym() << "\"" << std::endl;
+            std::cout << "Keyboard pressed: \" Ctrl + " << event.getKeySym() << "\"" << std::endl;
         }
     }
     else
@@ -726,7 +726,7 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void*
         if((event.getKeySym() == "space")&&(event.keyDown()))
         {
             viewer_pause = !viewer_pause;
-            std::cerr << "viewer_pause: " << ((viewer_pause == true)? "ON" : "OFF") << std::endl;
+            std::cout << "viewer_pause: " << ((viewer_pause == true)? "ON" : "OFF") << std::endl;
         }
         else if((event.getKeySym() == "KP_Add")&&(event.keyDown()))
         {
@@ -738,7 +738,7 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void*
         }
         else if(event.keyDown())
         {
-            std::cerr << "Keyboard pressed: \"" << event.getKeySym() << "\"" << std::endl;
+            std::cout << "Keyboard pressed: \"" << event.getKeySym() << "\"" << std::endl;
         }
     }
 }

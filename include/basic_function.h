@@ -36,12 +36,13 @@ namespace boost{namespace filesystem{
     return finalPath;
     }
 }}
+
 namespace myFunction
 {
 	template<typename RandomIt1> 
 	size_t getDivNum(const RandomIt1 &total, const unsigned int part = (std::thread::hardware_concurrency()+1))
 	{
-		return std::ceil((double)(total)/(double)(part));
+		return std::ceil(static_cast<double>(total)/static_cast<double>(part));
 	}		
 
 	template<typename Type>
