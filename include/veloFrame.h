@@ -197,7 +197,7 @@ namespace VeloFrame
                 }
                 else if((noiseRemovalParameter.size() % 2) == 0)
                 {
-                    for(int i = 0; i < (noiseRemovalParameter.size()-1); ++i)
+                    for(int i = 0; i < (noiseRemovalParameter.size()-1); i+=2)
                     {
                         if((noiseRemovalParameter[i] <= 0.0)&&(noiseRemovalParameter[i] > 1.0))
                         {
@@ -304,7 +304,7 @@ namespace VeloFrame
                     }
                     else if((noiseRemovalParameter.size() % 2) == 0)
                     {
-                        for(int i = 0; i < (noiseRemovalParameter.size()-1); ++i)
+                        for(int i = 0; i < (noiseRemovalParameter.size()-1); i+=2)
                         {
                             ps << '/';
                             ps << "nr_" << noiseRemovalParameter[i] << "_" << noiseRemovalParameter[i+1];
@@ -471,6 +471,8 @@ namespace VeloFrame
                         << boost::filesystem::relative(this->outputPath, cloudPath).string() << std::endl;
                 }
                 #endif
+                
+                std::cout << "VeloFrame save to " << this->outputPathWithParameter.string() << std::endl;
 
                 this->isSaved = true;
                 return true;
@@ -556,7 +558,7 @@ namespace VeloFrame
                         #ifdef VELOFRAME_USE_MULTITHREAD
                         size_t divisionNumber = myFunction::getDivNum(this->frames.size());
 
-                        result = this->noiseRemovalPart(divisionNumber, this->frames.begin(), this->frames.end());
+                        result = result & this->noiseRemovalPart(divisionNumber, this->frames.begin(), this->frames.end());
                         #else
                         pcl::StatisticalOutlierRemoval<pcl::PointXYZI> sor;
                         for(auto it : this->frames)
@@ -571,14 +573,14 @@ namespace VeloFrame
                 }
                 else if((this->noiseRemovalParameter.size() % 2) == 0)
                 {
-                    for(int i = 0; i < (this->noiseRemovalParameter.size()-1); ++i)
+                    for(int i = 0; i < (this->noiseRemovalParameter.size()-1); i+=2)
                     {
                         this->noiseRemovalPercentP = this->noiseRemovalParameter[i];
                         this->noiseRemovalStddevMulThresh = this->noiseRemovalParameter[i+1];
                         #ifdef VELOFRAME_USE_MULTITHREAD
                         size_t divisionNumber = myFunction::getDivNum(this->frames.size());
 
-                        result = this->noiseRemovalPart(divisionNumber, this->frames.begin(), this->frames.end());
+                        result = result & this->noiseRemovalPart(divisionNumber, this->frames.begin(), this->frames.end());
                         #else
                         pcl::StatisticalOutlierRemoval<pcl::PointXYZI> sor;
                         for(auto it : this->frames)
