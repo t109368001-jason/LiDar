@@ -1088,6 +1088,14 @@ namespace VeloFrame
                     this->spinOnce();
                     
                     if(this->pause) continue;
+
+                    if(this->startTimeReset)
+                    {
+                        this->startTime = std::chrono::steady_clock::now();
+                        this->startTimestamp = this->queue.front()->minTimestamp - std::chrono::microseconds(int64_t(1000000/5));
+                        this->startTimeReset = false;
+                    }
+
                     bool stay = (((std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - this->startTime).count()*this->playSpeedRate) < (nextTimestamp-this->startTimestamp).count()) && this->realTime);
 
                     if(stay) continue;
@@ -1104,6 +1112,7 @@ namespace VeloFrame
                     if(nextTimestamp > this->queue.front()->midTimestamp)
                     {
                         this->startTime = std::chrono::steady_clock::now();
+                        this->startTimestamp = this->queue.front()->minTimestamp - std::chrono::microseconds(int64_t(1000000/5));
                     }
                     nextTimestamp = this->queue.front()->minTimestamp;
                 }
