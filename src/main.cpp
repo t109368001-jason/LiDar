@@ -1,7 +1,7 @@
 #define HAVE_BOOST
 #define HAVE_PCAP
 #define HAVE_FAST_PCAP
-#define VELOFRAME_USE_MULTITHREAD
+//#define VELOFRAME_USE_MULTITHREAD
 
 #define TIMEZONE (+8)
 
@@ -10,6 +10,7 @@
 #include "../3rdparty/VelodyneCapture/VelodyneCapture.h"
 #include "../include/veloFrame.h"
 #include "../include/microStopwatch.h"
+
 
 const std::string red("\033[0;31m");
 const std::string green("\033[1;32m");
@@ -53,50 +54,61 @@ int main(int argc, char * argv[])
         boost::filesystem::path pcapPath{args::get(inputPcap)};
         boost::filesystem::path backgroundPath{args::get(inputBackground)};
 
-
         veloFrames.setPcapFile(pcapPath);
         veloFrames.setBackgroundCloud(backgroundPath);
-        veloFrames.setBackgroundSegmentationResolution(args::get(backgroundSeg));
-        veloFrames.setNoiseRemovalParameter(args::get(noiseRemoval));
+        if(backgroundSeg)
+        {
+            veloFrames.setBackgroundSegmentationResolution(args::get(backgroundSeg));
+        }
+        if(noiseRemoval)
+        {
+            veloFrames.setNoiseRemovalParameter(args::get(noiseRemoval));
+        }
+        veloFrames.setOffsetPoint(1000.0, 2000.0, 3000.0);
 
         std::cout << "Loading...";tt.tic();
         veloFrames.load(pcapPath.parent_path().string());
         std::cout << " >> Done: " << tt.toc_string() << " us\n";
-
+        
         if(outputAll)
         {
-            std::cout << "Saving...", tt.tic();
+            std::cout << "Saving...";tt.tic();
             veloFrames.save(pcapPath.parent_path().string());
             std::cout << " >> Done: " << tt.toc_string() << " us\n";
         }
 
         if(backgroundSeg)
         {
-            std::cout << "Background segmentation...", tt.tic();
+            std::cout << "Background segmentation...";tt.tic();
             veloFrames.backgroundSegmentation();
             std::cout << " >> Done: " << tt.toc_string() << " us\n";
         }
 
         if(outputAll)
         {
-            std::cout << "Saving...", tt.tic();
+            std::cout << "Saving...";tt.tic();
             veloFrames.save(pcapPath.parent_path().string());
             std::cout << " >> Done: " << tt.toc_string() << " us\n";
         }
 
         if(noiseRemoval)
         {
-            std::cout << "Noise removal...", tt.tic();
+            std::cout << "Noise removal...";tt.tic();
             veloFrames.noiseRemoval();
             std::cout << " >> Done: " << tt.toc_string() << " us\n";
         }
 
         if(output||outputAll)
         {
-            std::cout << "Saving...", tt.tic();
+            std::cout << "Saving...";tt.tic();
             veloFrames.save(pcapPath.parent_path().string());
             std::cout << " >> Done: " << tt.toc_string() << " us\n";
         }
+
+        std::cout << "Offset...";tt.tic();
+        veloFrames.offset();
+        std::cout << " >> Done: " << tt.toc_string() << " us\n";
+        veloFrames.print();
 
         veloFrameViewer.reset(new VeloFrame::VeloFrameViewer);
         veloFrameViewer->registerKeyboardCallback(keyboardEventOccurred);
