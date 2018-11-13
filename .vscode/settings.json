@@ -61,5 +61,6 @@
         "string_view": "cpp",
         "filesystem": "cpp",
         "slist": "cpp"
-    }
+    },
+    "C_Cpp.dimInactiveRegions": false
 }

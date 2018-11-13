@@ -13,7 +13,7 @@
 #include <pcl-1.8/pcl/point_cloud.h>
 #include <pcl-1.8/pcl/point_types.h>
 #include <pcl-1.8/pcl/io/pcd_io.h>
-#include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl-1.8/pcl/filters/statistical_outlier_removal.h>
 #include <pcl-1.8/pcl/visualization/pcl_visualizer.h>
 #include "../3rdparty/VelodyneCapture/VelodyneCapture.h"
 #include "../include/basic_function.h"
@@ -88,7 +88,7 @@ namespace VeloFrame
                 this->maxTimestamp = std::chrono::microseconds(maxTimestamp);
             }
 
-            void setCloud(const boost::shared_ptr<pcl::PointCloud<pcl::PointXYZI>> cloud)
+            void setCloud(const boost::shared_ptr<pcl::PointCloud<pcl::PointXYZI>> &cloud)
             {
                 this->cloud = cloud;
             }
@@ -106,6 +106,7 @@ namespace VeloFrame
     {
         friend class VeloFrameViewer;
         protected:
+        public:
             boost::filesystem::path pcapFilePath;
             boost::filesystem::path outputPath;
             boost::filesystem::path outputPathWithParameter;
@@ -131,8 +132,6 @@ namespace VeloFrame
             std::chrono::microseconds begTime;
             std::chrono::microseconds endTime;
             pcl::PointXYZ offsetPoint;
-
-        public:
 
             VeloFrames()
             {
@@ -174,10 +173,7 @@ namespace VeloFrame
             {
                 if(backgroundSegmentationResolutionCM <= 0.0)
                 {
-                    std::stringstream ss;
-                    ss << "VeloFrame::VeloFrames::setBackgroundSegmentationResolution, ";
-                    ss << "background segmentation resolution should > 0";
-                    throw VeloFrameException(ss.str());
+                    this->throwException("setBackgroundSegmentationResolution", "background segmentation resolution should > 0");
                     return false;
                 }
                 this->backgroundSegmentationResolution = backgroundSegmentationResolutionCM;
@@ -186,32 +182,23 @@ namespace VeloFrame
                 return true;
             }
 
-            bool setNoiseRemovalParameter(const std::vector<double> noiseRemovalParameter)
+            bool setNoiseRemovalParameter(const std::vector<double> &noiseRemovalParameter)
             {
                 if(noiseRemovalParameter.size() == 3)
                 {
                     if((noiseRemovalParameter[0] <= 0.0)&&(noiseRemovalParameter[0] > 1.0))
                     {
-                        std::stringstream ss;
-                        ss << "VeloFrame::VeloFrames::setNoiseRemovalPercentP, ";
-                        ss << "noise removal percentP should > 0 and <= 1.0";
-                        throw VeloFrameException(ss.str());
+                        this->throwException("setNoiseRemovalParameter", "noise removal percentP should > 0 and <= 1.0");
                         return false;
                     }
                     if((noiseRemovalParameter[1] <= 0.0)&&(noiseRemovalParameter[1] > 1.0))
                     {
-                        std::stringstream ss;
-                        ss << "VeloFrame::VeloFrames::setNoiseRemovalStddevMulThresh, ";
-                        ss << "noise removal stddevMulThresh should > 0 and <= 1.0";
-                        throw VeloFrameException(ss.str());
+                        this->throwException("setNoiseRemovalParameter", "noise removal stddevMulThresh should > 0 and <= 1.0");
                         return false;
                     }
                     if(noiseRemovalParameter[2] <= 0.0)
                     {
-                        std::stringstream ss;
-                        ss << "VeloFrame::VeloFrames::setNoiseRemovalStddevMulThresh, ";
-                        ss << "noise removal times should > 0";
-                        throw VeloFrameException(ss.str());
+                        this->throwException("setNoiseRemovalParameter", "noise removal times should > 0");
                         return false;
                     }
                 }
@@ -221,28 +208,19 @@ namespace VeloFrame
                     {
                         if((noiseRemovalParameter[i] <= 0.0)&&(noiseRemovalParameter[i] > 1.0))
                         {
-                            std::stringstream ss;
-                            ss << "VeloFrame::VeloFrames::setNoiseRemovalPercentP, ";
-                            ss << "noise removal percentP should > 0 and <= 1.0";
-                            throw VeloFrameException(ss.str());
+                            this->throwException("setNoiseRemovalParameter", "noise removal percentP should > 0 and <= 1.0");
                             return false;
                         }
                         if((noiseRemovalParameter[i+1] <= 0.0)&&(noiseRemovalParameter[i+1] > 1.0))
                         {
-                            std::stringstream ss;
-                            ss << "VeloFrame::VeloFrames::setNoiseRemovalStddevMulThresh, ";
-                            ss << "noise removal stddevMulThresh should > 0 and <= 1.0";
-                            throw VeloFrameException(ss.str());
+                            this->throwException("setNoiseRemovalParameter", "noise removal stddevMulThresh should > 0 and <= 1.0");
                             return false;
                         }
                     }
                 }
                 else
                 {
-                    std::stringstream ss;
-                    ss << "VeloFrame::VeloFrames::setNoiseRemovalPercentP, ";
-                    ss << "noise removal parameter number should be 3 or 2*N";
-                    throw VeloFrameException(ss.str());
+                    this->throwException("setNoiseRemovalParameter", "noise removal parameter number should be 3 or 2*N");
                     return false;
                 }
                 this->noiseRemovalParameter = noiseRemovalParameter;
@@ -260,11 +238,7 @@ namespace VeloFrame
                 }
                 if(!boost::filesystem::exists(backgroundPath))
                 {
-                    std::stringstream ss;
-                    ss << "VeloFrame::VeloFrames::setBackgroundCloud, ";
-                    ss << boost::filesystem::absolute(backgroundPath).string();
-                    ss << " not found.";
-                    throw VeloFrameException(ss.str());
+                    this->throwException("setBackgroundCloud", boost::filesystem::absolute(backgroundPath).string() + " not found.");
                     return false;
                 }
                 this->backgroundCloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
@@ -276,10 +250,7 @@ namespace VeloFrame
             {
                 if(begTime < std::chrono::microseconds(int64_t(0)))
                 {
-                    std::stringstream ss;
-                    ss << "VeloFrame::VeloFrames::setBegTime, ";
-                    ss << "begin time can't < 0";
-                    throw VeloFrameException(ss.str());
+                    this->throwException("setBegTime", "begin time can't < 0");
                     return false;
                 }
                 this->begTime = begTime;
@@ -290,10 +261,7 @@ namespace VeloFrame
             {
                 if(endTime <= this->begTime)
                 {
-                    std::stringstream ss;
-                    ss << "VeloFrame::VeloFrames::setBegTime, ";
-                    ss << "end time should > begin time";
-                    throw VeloFrameException(ss.str());
+                    this->throwException("setEndTime", "end time should > begin time");
                     return false;
                 }
                 this->endTime = endTime;
@@ -304,18 +272,12 @@ namespace VeloFrame
             {
                 if((x == std::numeric_limits<float>::quiet_NaN())||(y == std::numeric_limits<float>::quiet_NaN())||(z == std::numeric_limits<float>::quiet_NaN()))
                 {
-                    std::stringstream ss;
-                    ss << "VeloFrame::VeloFrames::setOffsetPoint, ";
-                    ss << "offset point is NaN";
-                    throw VeloFrameException(ss.str());
+                    this->throwException("setOffsetPoint", "offset point is NaN");
                     return false;
                 }
                 if((x == std::numeric_limits<float>::infinity())||(y == std::numeric_limits<float>::infinity())||(z == std::numeric_limits<float>::quiet_NaN()))
                 {
-                    std::stringstream ss;
-                    ss << "VeloFrame::VeloFrames::setOffsetPoint, ";
-                    ss << "offset point is infinity";
-                    throw VeloFrameException(ss.str());
+                    this->throwException("setOffsetPoint", "offset point is infinity");
                     return false;
                 }
                 this->offsetPoint.x = x;
@@ -326,12 +288,12 @@ namespace VeloFrame
                 return true;
             }
 
-            void setUseZip(bool useZip)
+            void setUseZip(const bool &useZip)
             {
                 this->useZip = useZip;
             }
 
-            std::string getOnlyBackgroundSegmentationParameterString(bool isLoad)
+            std::string getOnlyBackgroundSegmentationParameterString(const bool &isLoad)
             {
                 std::stringstream ps;
                 if((this->isBackgroundSegmented)||(isLoad))
@@ -342,7 +304,7 @@ namespace VeloFrame
                 return ps.str();
             }
 
-            std::string getOnlyNoiseRemovalParameterString(bool isLoad)
+            std::string getOnlyNoiseRemovalParameterString(const bool &isLoad)
             {
                 std::stringstream ps;
                 if((this->isNoiseRemoved)||(isLoad))
@@ -367,7 +329,7 @@ namespace VeloFrame
                 return ps.str();
             }
 
-            std::string getParameterString(bool isLoad)
+            std::string getParameterString(const bool &isLoad)
             {
                 std::stringstream ps;
                 if((this->isBackgroundSegmented)||(isLoad))
@@ -384,7 +346,7 @@ namespace VeloFrame
 
             bool load(const std::string &prefixPath)
             {
-                bool result;
+                bool result = true;
 
                 if(this->frames.size() != 0)
                 {
@@ -424,7 +386,7 @@ namespace VeloFrame
                         this->outputPathWithParameter = this->outputPath;
                     }
                     std::cout << "VeloFrame load from " << zipPath.string() << std::endl;
-                    result = this->loadFromZip();
+                    result = result & this->loadFromZip();
                 }
                 else
                 {
@@ -452,12 +414,12 @@ namespace VeloFrame
                     {
                         this->outputPathWithParameter = boost::filesystem::canonical(this->outputPathWithParameter);
                         std::cout << "VeloFrame load from " << this->outputPathWithParameter.string() << std::endl;
-                        result = this->loadFromFolder();
+                        result = result & this->loadFromFolder();
                     }
                     else
                     {
                         std::cout << "VeloFrame load from " << this->pcapFilePath.string() << std::endl;
-                        result = this->loadFromPcap();
+                        result = result & this->loadFromPcap();
                     }
                 }
 
@@ -480,45 +442,9 @@ namespace VeloFrame
                 return result;
             }
 
-            bool saveToZip(const std::string &prefixPath)
-            {
-                if(!this->isChanged) 
-                {
-                    std::cout << std::endl << "No changes to save" << std::endl;
-                    return false;
-                }
-                if(this->isSaved)
-                {
-                    std::cout << std::endl << "No changes to save" << std::endl;
-                    return false;
-                }
-
-                this->outputPath = prefixPath;
-                this->outputPath.append(this->pcapFilePath.stem().string());
-                this->outputPathWithParameter = this->outputPath;
-                this->outputPathWithParameter.append(this->getParameterString(false));
-
-                boost::filesystem::path fixedZipPath = boost::filesystem::relative(boost::filesystem::absolute(this->outputPath), boost::filesystem::absolute(this->outputPathWithParameter));
-
-                boost::filesystem::path configPath = fixedZipPath;
-                configPath.append("config.txt");
-
-                boost::filesystem::path zipPath = this->outputPath.string() + ".zip";
-
-                myZip::myZip mz(zipPath.string());
-
-                if(mz.search(configPath))
-                {
-                    std::cout << std::endl << "No changes to save" << std::endl;
-                    return false;
-                }
-
-                
-
-            }
-
             bool save(const std::string &prefixPath)
             {
+                bool result = true;
                 if(!this->isChanged) 
                 {
                     std::cout << std::endl << "No changes to save" << std::endl;
@@ -575,7 +501,7 @@ namespace VeloFrame
 
                 size_t divisionNumber = myFunction::getDivNum(this->frames.size());
 
-                bool result = this->savePart(divisionNumber, this->frames.begin(), this->frames.end());
+                result = result & this->savePart(divisionNumber, this->frames.begin(), this->frames.end());
                 #else
                 for(int i = 0; i < this->frames.size(); i++)
                 {
@@ -592,12 +518,13 @@ namespace VeloFrame
                 
                 std::cout << "VeloFrame save to " << this->outputPathWithParameter.string() << std::endl;
 
-                this->isSaved = true;
-                return true;
+                this->isSaved = result;
+                return result;
             }
 
             bool backgroundSegmentation()
             {
+                bool result = true;
                 if(this->isBackgroundSegmented)
                 {
                     std::cout << "VeloFrame already Background segmented" << std::endl;
@@ -634,7 +561,7 @@ namespace VeloFrame
 
                 size_t divisionNumber = myFunction::getDivNum(this->frames.size());
 
-                bool result = this->backgroundSegmentationPart(divisionNumber, backgroundSegmentation, this->frames.begin(), this->frames.end());
+                result = result & this->backgroundSegmentationPart(divisionNumber, backgroundSegmentation, this->frames.begin(), this->frames.end());
                 #else
                 myClass::backgroundSegmentation<pcl::PointXYZI> backgroundSegmentation;
                 backgroundSegmentation.setBackground(this->backgroundCloud, this->backgroundSegmentationResolution);
@@ -654,14 +581,15 @@ namespace VeloFrame
                     }
                 }
 
-                this->isBackgroundSegmented = true;
-                this->isChanged = true;
-                this->isSaved = false;
+                this->isBackgroundSegmented = result;
+                this->isChanged = result;
+                this->isSaved = !result;
+                return result;
             }
 
             bool noiseRemoval(const bool first = true)
             {
-                bool result;
+                bool result = true;
                 if((this->isNoiseRemoved)&&(first))
                 {
                     std::cout << "VeloFrame already noise removed" << std::endl;
@@ -729,42 +657,15 @@ namespace VeloFrame
                     }
                 }
 
-                this->isNoiseRemoved = true;
-                this->isChanged = true;
-                this->isSaved = false;
-            }
-
-	        template<typename RandomIt1>
-            bool offsetPart(const size_t &divisionNumber, const RandomIt1 &beg, const RandomIt1 &end)
-            {
-                auto len = end - beg;
-
-                if(len < divisionNumber)
-                {
-                    bool out = true;;
-                    for(auto it = beg; it != end; ++it)
-                    {
-                        for(auto it2 : (*it)->cloud->points)
-                        {
-                            it2.x -= this->offsetPoint.x;
-                            it2.y -= this->offsetPoint.y;
-                            it2.z -= this->offsetPoint.z;
-                        }
-                    }
-                    return out;
-                }
-
-                auto mid = beg + len/2;
-                auto handle = std::async(std::launch::async, &VeloFrames::offsetPart<RandomIt1>, this, divisionNumber, beg, mid);
-                auto out1 = VeloFrames::offsetPart<RandomIt1>(divisionNumber, mid, end);
-                auto out = handle.get();
-
-                return out & out1;
+                this->isNoiseRemoved = result;
+                this->isChanged = result;
+                this->isSaved = !result;
+                return result;
             }
 
             bool offset()
             {
-                bool result;
+                bool result = true;
 
                 if(this->isOffset)
                 {
@@ -794,7 +695,7 @@ namespace VeloFrame
                     }
                 }
                 #endif
-                this->isOffset = true;
+                this->isOffset = result;
                 return result;
             }
 
@@ -901,7 +802,7 @@ namespace VeloFrame
             }
         private:
 
-            void throwException(std::string functionName, std::string message)
+            void throwException(const std::string &functionName, const std::string &message)
             {
                 std::stringstream ss;
                 ss << "VeloFrame::VeloFrames::" << functionName << ", ";
@@ -939,8 +840,6 @@ namespace VeloFrame
                         
                             minTimestamp = std::min(laser.time, minTimestamp);
                             maxTimestamp = std::max(laser.time, maxTimestamp);
-                            midTimestamp = (maxTimestamp - minTimestamp)/2 + minTimestamp;
-
 
                             point.x = static_cast<float>( ( distance * std::cos( vertical ) ) * std::sin( azimuth ) );
                             point.y = static_cast<float>( ( distance * std::cos( vertical ) ) * std::cos( azimuth ) );
@@ -965,6 +864,7 @@ namespace VeloFrame
                         (*it2).reset(new VeloFrame());
                         (*it2)->cloud = cloud;
                         (*it2)->minTimestamp = std::chrono::microseconds(minTimestamp);
+                        midTimestamp = (maxTimestamp - minTimestamp)/2 + minTimestamp;
                         (*it2)->midTimestamp = std::chrono::microseconds(midTimestamp);
                         (*it2)->maxTimestamp = std::chrono::microseconds(maxTimestamp);
                     }
@@ -982,6 +882,7 @@ namespace VeloFrame
 
             bool loadFromPcap()
             {
+                bool result = true;
                 velodyne::VLP16Capture vlp16;
 
                 if(!vlp16.open(this->pcapFilePath.string()))
@@ -1012,7 +913,7 @@ namespace VeloFrame
 
                 size_t divisionNumber = myFunction::getDivNum(f.size());
 
-                bool result = this->loadFromPcapPart(divisionNumber, f.begin(), f.end(), this->frames.begin(), this->frames.end());
+                result = result & this->loadFromPcapPart(divisionNumber, f.begin(), f.end(), this->frames.begin(), this->frames.end());
                 
                 for(int i = 0; i < this->frames.size(); ++i)
                 {
@@ -1126,6 +1027,7 @@ namespace VeloFrame
 
             bool loadFromFolder()
             {
+                bool result = true;
                 boost::filesystem::path configPath = this->outputPathWithParameter;
                 configPath.append("config.txt");
 
@@ -1179,7 +1081,7 @@ namespace VeloFrame
 
                 size_t divisionNumber = myFunction::getDivNum(f.size());
 
-                bool result = this->loadFromFolderPart(divisionNumber, f.begin(), f.end(), this->frames.begin(), this->frames.end());
+                result = result & this->loadFromFolderPart(divisionNumber, f.begin(), f.end(), this->frames.begin(), this->frames.end());
                 
                 for(int i = 0; i < this->frames.size(); ++i)
                 {
@@ -1287,6 +1189,34 @@ namespace VeloFrame
                 auto mid = beg + len/2;
                 auto handle = std::async(std::launch::async, &VeloFrames::noiseRemovalPart<RandomIt1>, this, divisionNumber, beg, mid);
                 auto out1 = VeloFrames::noiseRemovalPart<RandomIt1>(divisionNumber, mid, end);
+                auto out = handle.get();
+
+                return out & out1;
+            }
+
+	        template<typename RandomIt1>
+            bool offsetPart(const size_t &divisionNumber, const RandomIt1 &beg, const RandomIt1 &end)
+            {
+                auto len = end - beg;
+
+                if(len < divisionNumber)
+                {
+                    bool out = true;;
+                    for(auto it = beg; it != end; ++it)
+                    {
+                        for(auto it2 : (*it)->cloud->points)
+                        {
+                            it2.x -= this->offsetPoint.x;
+                            it2.y -= this->offsetPoint.y;
+                            it2.z -= this->offsetPoint.z;
+                        }
+                    }
+                    return out;
+                }
+
+                auto mid = beg + len/2;
+                auto handle = std::async(std::launch::async, &VeloFrames::offsetPart<RandomIt1>, this, divisionNumber, beg, mid);
+                auto out1 = VeloFrames::offsetPart<RandomIt1>(divisionNumber, mid, end);
                 auto out = handle.get();
 
                 return out & out1;
@@ -1412,6 +1342,7 @@ namespace VeloFrame
                     else if((event.getKeySym() == "space")&&(event.keyDown()))
                     {
                         this->realTime = !this->realTime;
+                        this->startTimeReset = true;
                         std::cout << "realTime: " << ((this->realTime == true)? "ON" : "OFF") << std::endl;
                     }
                     else if((event.getKeySym() == "Up")&&(event.keyDown()))
@@ -1436,6 +1367,7 @@ namespace VeloFrame
                     if((event.getKeySym() == "space")&&(event.keyDown()))
                     {
                         this->pause = !this->pause;
+                        this->startTimeReset = true;
                         std::cout << "viewer_pause: " << ((this->pause == true)? "ON" : "OFF") << std::endl;
                     }
                     else if((event.getKeySym() == "KP_Add")&&(event.keyDown()))
