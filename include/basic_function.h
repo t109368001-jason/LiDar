@@ -3,6 +3,9 @@
 
 #include <iostream>
 #include "../include/date.h"
+#ifndef TIMEZONE
+#define TIMEZONE 8
+#endif
 namespace boost{namespace filesystem{
     boost::filesystem::path relative(boost::filesystem::path from, boost::filesystem::path to)
     {
@@ -39,8 +42,8 @@ namespace boost{namespace filesystem{
 
 namespace myFunction
 {
-	template<typename RandomIt1> 
-	size_t getDivNum(const RandomIt1 &total, const unsigned int part = (std::thread::hardware_concurrency()+1))
+	template<typename RandomIt1, typename RandomIt2> 
+	size_t getDivNum(const RandomIt1 &total, const RandomIt2 part = (std::thread::hardware_concurrency()+1))
 	{
 		return std::ceil(static_cast<double>(total)/static_cast<double>(part));
 	}		

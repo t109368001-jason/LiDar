@@ -12,6 +12,7 @@
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/octree/octree_pointcloud_changedetector.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include "../include/basic_function.h"
 #include "../include/date.h"
 
 using namespace std;
@@ -833,46 +834,6 @@ namespace myFunction
 	}
 
 #pragma endregion showCloud
-
-#pragma region durationToString
-
-	template<typename RandomIt>
-	std::string durationToString(const RandomIt &duration, const bool isFileName = true)
-	{
-		std::ostringstream stream;
-		std::chrono::time_point<std::chrono::system_clock> tp = std::chrono::time_point<std::chrono::system_clock>(duration);
-		tp += std::chrono::hours(TIMEZONE);
-		auto dp = date::floor<date::days>(tp);  // dp is a sys_days, which is a
-										// type alias for a C::time_point
-		auto date = date::year_month_day{dp};
-		auto time = date::make_time(std::chrono::duration_cast<std::chrono::milliseconds>(tp-dp));
-		stream << std::setfill('0') << std::setw(4) << date.year().operator int();
-		if(!isFileName) stream << '/';
-		stream << std::setfill('0') << std::setw(2) << date.month().operator unsigned int();
-		if(!isFileName) stream << '/';
-		stream << std::setfill('0') << std::setw(2) << date.day().operator unsigned int();
-		if(!isFileName) stream << ' ';
-		else stream << '_';
-		stream << std::setfill('0') << std::setw(2) << time.hours().count();
-		if(!isFileName) stream << ':';
-		stream << std::setfill('0') << std::setw(2) << time.minutes().count();
-		if(!isFileName) stream << ':';
-		stream << std::setfill('0') << std::setw(2) << time.seconds().count();
-		if(!isFileName) stream << '.';
-		else stream << '_';
-		stream << std::setfill('0') << std::setw(3) << time.subseconds().count();
-		if(typeid(RandomIt) == typeid(std::chrono::microseconds))
-		{
-			stream << std::setfill('0') << std::setw(3) << duration.count() % 1000;
-		}
-		if(typeid(RandomIt) == typeid(std::chrono::nanoseconds))
-		{
-			stream << std::setfill('0') << std::setw(3) << duration.count() % 1000000;
-		}
-		return stream.str();
-	}
-
-#pragma endregion durationToString
 
 #pragma region getSimilarity
 

@@ -19,7 +19,6 @@
 #include "../include/basic_function.h"
 #include "../include/microStopwatch.h"
 #include "../include/backgroundSegmentation.h"
-#include "../include/myZip.h"
 
 namespace VeloFrame
 {
@@ -150,7 +149,6 @@ namespace VeloFrame
                 this->isNoiseRemovalParameterSet = false;
                 this->isOffsetPointSet = false;
                 this->loadSecondCloudAsBackground = false;
-                this->useZip = false;
                 this->backgroundSegmentationResolution = 0.0;
                 this->begTime = std::chrono::microseconds(int64_t(0));
                 this->endTime = std::chrono::microseconds(std::numeric_limits<int64_t>::max());
@@ -403,62 +401,36 @@ namespace VeloFrame
                 backgroundSegmentationAndNoiseRemovalPath = this->outputPath;
                 backgroundSegmentationAndNoiseRemovalPath.append(this->getParameterString(true));
 
-                if(this->useZip)
+                bool fromPcap = true;
+                if((boost::filesystem::exists(backgroundSegmentationAndNoiseRemovalPath))&&(this->isBackgroundSegmentationResolutionSet)&&(this->isNoiseRemovalParameterSet))
                 {
-                    boost::filesystem::path zipPath = this->outputPath.string() + ".zip";
-                    myZip::myZip mz(zipPath.string());
+                    this->outputPathWithParameter = backgroundSegmentationAndNoiseRemovalPath;
+                    this->isBackgroundSegmented = true;
+                    this->isNoiseRemoved = true;
+                    fromPcap = false;
+                }
+                else if((boost::filesystem::exists(backgroundSegmentationPath))&&(this->isBackgroundSegmentationResolutionSet))
+                {
+                    this->outputPathWithParameter = backgroundSegmentationPath;
+                    this->isBackgroundSegmented = true;
+                    fromPcap = false;
+                }
+                else if(boost::filesystem::exists(this->outputPath))
+                {
+                    this->outputPathWithParameter = this->outputPath;
+                    fromPcap = false;
+                }
 
-                    if((mz.search(boost::filesystem::relative(boost::filesystem::absolute(this->outputPath), boost::filesystem::absolute(backgroundSegmentationAndNoiseRemovalPath))))&&(this->isBackgroundSegmentationResolutionSet)&&(this->isNoiseRemovalParameterSet))
-                    {
-                        this->outputPathWithParameter = backgroundSegmentationAndNoiseRemovalPath;
-                        this->isBackgroundSegmented = true;
-                        this->isNoiseRemoved = true;
-                    }
-                    else if((mz.search(boost::filesystem::relative(boost::filesystem::absolute(this->outputPath), boost::filesystem::absolute(backgroundSegmentationPath))))&&(this->isBackgroundSegmentationResolutionSet))
-                    {
-                        this->outputPathWithParameter = backgroundSegmentationPath;
-                        this->isBackgroundSegmented = true;
-                    }
-                    else
-                    {
-                        this->outputPathWithParameter = this->outputPath;
-                    }
-                    std::cout << "VeloFrame load from " << zipPath.string() << std::endl;
-                    result = this->loadFromZip();
+                if(!fromPcap)
+                {
+                    this->outputPathWithParameter = boost::filesystem::canonical(this->outputPathWithParameter);
+                    std::cout << "VeloFrame load from " << this->outputPathWithParameter.string() << std::endl;
+                    result = this->loadFromFolder();
                 }
                 else
                 {
-                    bool fromPcap = true;
-                    if((boost::filesystem::exists(backgroundSegmentationAndNoiseRemovalPath))&&(this->isBackgroundSegmentationResolutionSet)&&(this->isNoiseRemovalParameterSet))
-                    {
-                        this->outputPathWithParameter = backgroundSegmentationAndNoiseRemovalPath;
-                        this->isBackgroundSegmented = true;
-                        this->isNoiseRemoved = true;
-                        fromPcap = false;
-                    }
-                    else if((boost::filesystem::exists(backgroundSegmentationPath))&&(this->isBackgroundSegmentationResolutionSet))
-                    {
-                        this->outputPathWithParameter = backgroundSegmentationPath;
-                        this->isBackgroundSegmented = true;
-                        fromPcap = false;
-                    }
-                    else if(boost::filesystem::exists(this->outputPath))
-                    {
-                        this->outputPathWithParameter = this->outputPath;
-                        fromPcap = false;
-                    }
-
-                    if(!fromPcap)
-                    {
-                        this->outputPathWithParameter = boost::filesystem::canonical(this->outputPathWithParameter);
-                        std::cout << "VeloFrame load from " << this->outputPathWithParameter.string() << std::endl;
-                        result = this->loadFromFolder();
-                    }
-                    else
-                    {
-                        std::cout << "VeloFrame load from " << this->pcapFilePath.string() << std::endl;
-                        result = this->loadFromPcap();
-                    }
+                    std::cout << "VeloFrame load from " << this->pcapFilePath.string() << std::endl;
+                    result = this->loadFromPcap();
                 }
 
                 if(this->frames.size() == 0)
@@ -478,43 +450,6 @@ namespace VeloFrame
 
                 this->isLoaded = result;
                 return result;
-            }
-
-            bool saveToZip(const std::string &prefixPath)
-            {
-                if(!this->isChanged) 
-                {
-                    std::cout << std::endl << "No changes to save" << std::endl;
-                    return false;
-                }
-                if(this->isSaved)
-                {
-                    std::cout << std::endl << "No changes to save" << std::endl;
-                    return false;
-                }
-
-                this->outputPath = prefixPath;
-                this->outputPath.append(this->pcapFilePath.stem().string());
-                this->outputPathWithParameter = this->outputPath;
-                this->outputPathWithParameter.append(this->getParameterString(false));
-
-                boost::filesystem::path fixedZipPath = boost::filesystem::relative(boost::filesystem::absolute(this->outputPath), boost::filesystem::absolute(this->outputPathWithParameter));
-
-                boost::filesystem::path configPath = fixedZipPath;
-                configPath.append("config.txt");
-
-                boost::filesystem::path zipPath = this->outputPath.string() + ".zip";
-
-                myZip::myZip mz(zipPath.string());
-
-                if(mz.search(configPath))
-                {
-                    std::cout << std::endl << "No changes to save" << std::endl;
-                    return false;
-                }
-
-                
-
             }
 
             bool save(const std::string &prefixPath)
@@ -796,86 +731,6 @@ namespace VeloFrame
                 #endif
                 this->isOffset = true;
                 return result;
-            }
-
-            bool loadFromZip()
-            {
-                boost::filesystem::path zipPath = this->outputPath.string() + ".zip";
-                boost::filesystem::path configPath = boost::filesystem::relative(boost::filesystem::absolute(this->outputPath), boost::filesystem::absolute(this->outputPathWithParameter));
-
-                myZip::myZip mz(zipPath.string());
-
-                configPath.append("config.txt");
-
-                if(mz.search(configPath))
-                {
-                    std::stringstream ss;
-                    ss << "VeloFrame::VeloFrames::loadFromFolder, ";
-                    ss << boost::filesystem::absolute(configPath).string();
-                    ss << " not found.";
-                    throw VeloFrameException(ss.str());
-                    return false;
-                }
-
-                std::vector<std::string> ss1s;
-                std::vector<std::string> f;
-
-                std::string lines = mz.getString(configPath);
-
-                boost::split(ss1s, lines, boost::is_any_of("\n"));
-
-                for(auto ss1 : ss1s)
-                {
-                    std::vector<std::string> ss2s;
-                    boost::split(ss2s, ss1, boost::is_any_of("="));
-                    if(ss2s.size() != 2) continue;
-
-                    if(ss2s[0] == "pcap") this->pcapFilePath = boost::filesystem::path{ss2s[1]};
-                    else if(ss2s[0] == "background")
-                    {
-                        this->backgroundCloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
-
-                        boost::filesystem::path backgroundPath(ss2s[1]);
-                        boost::filesystem::path backgroundTmpPath("tmp/" + ss2s[1]);
-
-                        mz.extra(backgroundPath, backgroundTmpPath);
-
-                        pcl::io::loadPCDFile(backgroundTmpPath.string(), *(this->backgroundCloud));
-                        boost::filesystem::remove(backgroundTmpPath);
-                    }
-                    else
-                    {
-                        f.push_back(ss2s[1]);
-                    }
-                }
-                this->frames.resize(f.size());
-
-                auto it2 = this->frames.begin();
-                for(auto it1 : f)
-                {
-                    std::vector<std::string> ss;
-                    boost::split(ss, it1, boost::is_any_of("&"));
-
-                    boost::filesystem::path cloudPath(ss[3]);
-                    boost::filesystem::path cloudTmpPath("tmp/" + ss[3]);
-                    if((std::stoll(ss[0]) < this->begTime.count())&&(std::stoll(ss[0]) > this->endTime.count())) continue;
-
-                    (*it2).reset(new VeloFrame());
-                    (*it2)->cloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
-                    (*it2)->setMinTimestamp(std::stoll(ss[0]));
-                    (*it2)->setMidTimestamp(std::stoll(ss[1]));
-                    (*it2)->setMaxTimestamp(std::stoll(ss[2]));
-
-                    mz.extra(cloudPath, cloudTmpPath);
-
-                    pcl::io::loadPCDFile(cloudTmpPath.string(), *((*it2)->cloud));
-                    boost::filesystem::remove(cloudTmpPath);
-                    it2++;
-                }
-
-                std::sort(this->frames.begin(), this->frames.end(), [](const auto &a, const auto &b){ return a->minTimestamp < b->minTimestamp; });
-
-                return true;
             }
 
             void print(const bool showBasicInfo = true, const std::string &prefixString = "") const
@@ -1349,6 +1204,7 @@ namespace VeloFrame
             void run()
             {
                 boost::shared_ptr<pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZI>> handler( new pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZI>( "intensity" ) );
+                boost::shared_ptr<pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZI>> handler1( new pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZI>( 1.0, 1.0, 1.0 ) );
                 std::chrono::microseconds nextTimestamp;
 
                 for(auto it : this->frames)

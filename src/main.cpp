@@ -1,142 +1,203 @@
 #define HAVE_BOOST
 #define HAVE_PCAP
 #define HAVE_FAST_PCAP
-//#define VELOFRAME_USE_MULTITHREAD
-
-#define TIMEZONE (+8)
-
 #include <iostream>
-#include "../3rdparty/args/args.hxx"
+#include <pcl/console/parse.h>
+#include <pcl/io/vtk_lib_io.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/surface/poisson.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/io/ply_io.h>
+#include <pcl/point_types.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/features/normal_3d.h>
+#include <thread>
+#include <pcl/io/vlp_grabber.h>
 #include "../3rdparty/VelodyneCapture/VelodyneCapture.h"
-#include "../include/veloFrame.h"
-#include "../include/microStopwatch.h"
+#include "../include/function.h"
+#include "../include/lasers.h"
 
+using namespace std;
+using namespace pcl;
+using namespace pcl::console;
+using namespace pcl::visualization;
 
-const std::string red("\033[0;31m");
-const std::string green("\033[1;32m");
-const std::string yellow("\033[1;33m");
-const std::string cyan("\033[0;36m");
-const std::string magenta("\033[0;35m");
-const std::string reset("\033[0m");
-
+PCLVisualizer::Ptr viewer;
 std::string filename;
+uint64_t startTime;
+uint64_t startTime2;
 
-args::ArgumentParser parser("This is a test program.", "This goes after the options.");
-args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
-
-args::Group requirementGroup(parser, "This group is all required:", args::Group::Validators::All);
-    args::ValueFlag<std::string> inputPcap(requirementGroup, "inputPcap", "input pcap", {"pcap"});
-    args::ValueFlag<std::string> inputBackground(requirementGroup, "inputBackground", "input background", {"back"});
-args::Group dontCareGroup(parser, "This group is dont care:", args::Group::Validators::DontCare);
-    args::ValueFlag<double> backgroundSeg(dontCareGroup, "backgroundSeg", "Enable background segmentation", {"bs", "background_segmentation"});
-    args::ValueFlagList<double> noiseRemoval(dontCareGroup, "noiseRemoval", "Enable noise removal", {"nr", "noise_removal"});
-    args::Flag output(dontCareGroup, "output", "output", {'o', "output"});
-    args::Flag outputAll(dontCareGroup, "outputAll", "output all", {"oa", "outputAll"});
-
-void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing)
+void keyboardEventOccurred(const KeyboardEvent& event, void* nothing)
 {
-    if(event.keyDown())
-    {
-        std::cout << "Keyboard pressed: " << ((event.isAltPressed())? "Alt + " : "") << ((event.isCtrlPressed())? "Ctrl + " : "") << ((event.isShiftPressed())? "Shift + " : "") << event.getKeySym() << std::endl;
-    }
+  if (event.getKeySym() == "y" && event.keyDown()) // Flat shading
+  {
+    viewer->setShapeRenderingProperties(PCL_VISUALIZER_SHADING,
+                                        PCL_VISUALIZER_SHADING_FLAT, filename);
+  }
+  else if (event.getKeySym() == "t" && event.keyDown()) // Gouraud shading
+  {
+    viewer->setShapeRenderingProperties(PCL_VISUALIZER_SHADING,
+                                        PCL_VISUALIZER_SHADING_GOURAUD, filename);
+  }
+  else if (event.getKeySym() == "n" && event.keyDown()) // Phong shading
+  {
+    viewer->setShapeRenderingProperties(PCL_VISUALIZER_SHADING,
+                                        PCL_VISUALIZER_SHADING_PHONG, filename);
+  }
 }
+
+typedef pcl::PointXYZI PointType;
 
 int main(int argc, char * argv[])
 {
-    myClass::MicroStopwatch tt("main");
-    VeloFrame::VeloFrames veloFrames;
-    boost::shared_ptr<VeloFrame::VeloFrameViewer> veloFrameViewer;
-
-    try
+    std::vector<int> file_indices = pcl::console::parse_file_extension_argument (argc, argv, ".pcap");
+    if (file_indices.empty())
     {
-        parser.ParseCLI(argc, argv);
+        PCL_ERROR ("Please provide file as argument\n");
+        return 1;
+    }
+    filename = argv[file_indices[0]];
+
+
+    velodyne::VLP16Capture vlp16;
+
+    if(!vlp16.open(filename))
+    {
+        std::cout << std::endl << "Error : load " << filename << " failed" << std::endl;
+        return false;
+    }
+
+    if(!vlp16.isOpen())
+    {
+        std::cout << std::endl << "Error : load " << filename << " failed" << std::endl;
+        return false;
+    }
+
+    pcl::PointXYZ point;
+    boost::shared_ptr<pcl::PointCloud<pcl::PointXYZ>> cloud;
+
+    std::ofstream ofs("test.csv");
+    ofs << "distance" << '\t';
+    ofs << "azimuth" << '\t';
+    ofs << "vertical" << '\t';
+    ofs << std::endl;
+
+    while(vlp16.isRun())
+    {
+        std::vector<velodyne::Laser> lasers;
+        vlp16 >> lasers;
+        vlp16 >> lasers;
+        vlp16 >> lasers;
+        vlp16 >> lasers;
+        if( lasers.empty() ){
+            continue;
+        }
+
+        cloud.reset(new pcl::PointCloud<pcl::PointXYZ>);
+
+        std::sort(lasers.begin(), lasers.end(), [] (auto a, auto b) { return a.vertical > b.vertical; });
+        std::sort(lasers.begin(), lasers.end(), [] (auto a, auto b) { return a.azimuth > b.azimuth; });
         
-        boost::filesystem::path pcapPath{args::get(inputPcap)};
-        boost::filesystem::path backgroundPath{args::get(inputBackground)};
+        myLasers::Lines lines;
 
-        veloFrames.setPcapFile(pcapPath);
-        veloFrames.setBackgroundCloud(backgroundPath);
-        if(backgroundSeg)
-        {
-            veloFrames.setBackgroundSegmentationResolution(args::get(backgroundSeg));
-        }
-        if(noiseRemoval)
-        {
-            veloFrames.setNoiseRemovalParameter(args::get(noiseRemoval));
-        }
-        veloFrames.setOffsetPoint(1000.0, 2000.0, 3000.0);
-
-        std::cout << "Loading...";tt.tic();
-        veloFrames.load(pcapPath.parent_path().string());
-        std::cout << " >> Done: " << tt.toc_string() << " us\n";
+        for( const velodyne::Laser& laser : lasers ){
+            const double distance = static_cast<double>( laser.distance );
+            const double azimuth  = laser.azimuth  * M_PI / 180.0;
+            const double vertical = laser.vertical * M_PI / 180.0;
         
-        if(outputAll)
-        {
-            std::cout << "Saving...";tt.tic();
-            veloFrames.save(pcapPath.parent_path().string());
-            std::cout << " >> Done: " << tt.toc_string() << " us\n";
+            point.x = static_cast<float>( ( distance * std::cos( vertical ) ) * std::sin( azimuth ) );
+            point.y = static_cast<float>( ( distance * std::cos( vertical ) ) * std::cos( azimuth ) );
+            point.z = static_cast<float>( ( distance * std::sin( vertical ) ) );
+        
+          if( point.x == 0.0f && point.y == 0.0f && point.z == 0.0f ){
+              continue;
+          }
+          lines.add(laser);
         }
+        lines.remove_duplicate();
+        lines.sort();
+        lines.linear_interpolation(5);
+        for( const myLasers::Line& line : lines.lines){
+          for( const velodyne::Laser& laser : line.lasers ){
+            const double distance = static_cast<double>( laser.distance );
+            const double azimuth  = laser.azimuth  * M_PI / 180.0;
+            const double vertical = laser.vertical * M_PI / 180.0;
+        
+            point.x = static_cast<float>( ( distance * std::cos( vertical ) ) * std::sin( azimuth ) );
+            point.y = static_cast<float>( ( distance * std::cos( vertical ) ) * std::cos( azimuth ) );
+            point.z = static_cast<float>( ( distance * std::sin( vertical ) ) );
+        
+            //point.intensity = laser.intensity;
 
-        if(backgroundSeg)
-        {
-            std::cout << "Background segmentation...";tt.tic();
-            veloFrames.backgroundSegmentation();
-            std::cout << " >> Done: " << tt.toc_string() << " us\n";
+            if( point.x == 0.0f && point.y == 0.0f && point.z == 0.0f ){
+                continue;
+                point.x = std::numeric_limits<float>::quiet_NaN();
+                point.y = std::numeric_limits<float>::quiet_NaN();
+                point.z = std::numeric_limits<float>::quiet_NaN();
+            }
+
+            ofs << laser.distance << '\t';
+            ofs << laser.azimuth << '\t';
+            ofs << laser.vertical << '\t';
+            ofs << std::endl;
+        
+            cloud->points.push_back(point);
+          }
         }
+        /*
+        for( const velodyne::Laser& laser : lasers ){
+            const double distance = static_cast<double>( laser.distance );
+            const double azimuth  = laser.azimuth  * M_PI / 180.0;
+            const double vertical = laser.vertical * M_PI / 180.0;
+        
+            point.x = static_cast<float>( ( distance * std::cos( vertical ) ) * std::sin( azimuth ) );
+            point.y = static_cast<float>( ( distance * std::cos( vertical ) ) * std::cos( azimuth ) );
+            point.z = static_cast<float>( ( distance * std::sin( vertical ) ) );
+        
+            //point.intensity = laser.intensity;
 
-        if(outputAll)
-        {
-            std::cout << "Saving...";tt.tic();
-            veloFrames.save(pcapPath.parent_path().string());
-            std::cout << " >> Done: " << tt.toc_string() << " us\n";
-        }
+            if( point.x == 0.0f && point.y == 0.0f && point.z == 0.0f ){
+                continue;
+                point.x = std::numeric_limits<float>::quiet_NaN();
+                point.y = std::numeric_limits<float>::quiet_NaN();
+                point.z = std::numeric_limits<float>::quiet_NaN();
+            }
 
-        if(noiseRemoval)
-        {
-            std::cout << "Noise removal...";tt.tic();
-            veloFrames.noiseRemoval();
-            std::cout << " >> Done: " << tt.toc_string() << " us\n";
-        }
-
-        if(output||outputAll)
-        {
-            std::cout << "Saving...";tt.tic();
-            veloFrames.save(pcapPath.parent_path().string());
-            std::cout << " >> Done: " << tt.toc_string() << " us\n";
-        }
-
-        std::cout << "Offset...";tt.tic();
-        veloFrames.offset();
-        std::cout << " >> Done: " << tt.toc_string() << " us\n";
-        veloFrames.print();
-
-        veloFrameViewer.reset(new VeloFrame::VeloFrameViewer);
-        veloFrameViewer->registerKeyboardCallback(keyboardEventOccurred);
-        veloFrameViewer->addFrames(veloFrames);
-        veloFrameViewer->run();
+            ofs << laser.distance << '\t';
+            ofs << laser.azimuth << '\t';
+            ofs << laser.vertical << '\t';
+            ofs << std::endl;
+        
+            cloud->points.push_back(point);
+        }*/
+        cloud->width = static_cast<uint32_t>(cloud->points.size());
+        cloud->height = 1;
+        break;
     }
-    catch (args::Help)
+
+    //pcl::PCLPointCloud2 cloud_blob;
+    //pcl::io::loadPCDFile(filename, cloud_blob);
+    //pcl::fromPCLPointCloud2(cloud_blob, *cloud);
+    viewer.reset(new PCLVisualizer);
+    viewer->registerKeyboardCallback(&keyboardEventOccurred, (void*) NULL);
+    //viewer->addCoordinateSystem( 3.0, "coordinate" );
+    viewer->setCameraPosition( 0.00001, 0.0, 0.0, 0.0, 0.0, 1.0, 0 );
+    viewer->setCameraFieldOfView(30.0 * M_PI / 180.0);
+    //viewer->addPolygonMesh(mesh, filename);
+    /*
+    for(int i = 0 ; i < cloud->points.size(); i++) 
     {
-        std::cout << parser;
-        return 0;
+      if((isnan(cloud->points[i].x))||(isnan(cloud->points[i].y))||(isnan(cloud->points[i].z)))
+      {
+        cloud->points.erase(cloud->points.begin() + i);
+        i--;
+        continue;
+      }
     }
-    catch (args::ParseError e)
-    {
-        std::cout << e.what() << std::endl;
-        parser.Help(std::cout);
-        return 1;
-    }
-    catch (args::ValidationError e)
-    {
-        std::cout << e.what() << std::endl;
-        parser.Help(std::cout);
-        return 1;
-    }
-    catch(VeloFrame::VeloFrameException &e)
-    {
-        std::cout << e.message() << std::endl;
-        return 1;
-    }
-
+    */
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_rgb(myFunction::XYZ_to_XYZRGB<pcl::PointXYZ>(cloud, false));
+    //viewer->addPointCloud(cloud, filename);
+    myFunction::showCloud(viewer, cloud_rgb, "rgb", 1);
+    viewer->spin();
     return 0;
 }
