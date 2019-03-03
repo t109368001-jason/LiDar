@@ -42,6 +42,11 @@ namespace boost{namespace filesystem{
 
 namespace myFunction
 {
+	template<typename RandomIt1, typename RandomIt2, typename RandomIt3> 
+    bool check_is_close(RandomIt1 a, RandomIt2 b, RandomIt3 tolerance) {
+        return std::fabs(a - b) < tolerance;
+    }
+
 	template<typename RandomIt1, typename RandomIt2> 
 	size_t getDivNum(const RandomIt1 &total, const RandomIt2 part = (std::thread::hardware_concurrency()+1))
 	{

@@ -56,13 +56,16 @@ include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
+find_package( OpenCV REQUIRED )
+include_directories( ${OpenCV_INCLUDE_DIRS} )
+
 include(FindPCAP.cmake)
 #include(FindZipIos.cmake)
 
 add_definitions(-std=c++17)   #boost需要版以上
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILE})          #設定執行檔名稱及對應程式碼
-target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES} ${PCAP_LIBRARY}) #連結函式庫
+target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${PCAP_LIBRARY} ) #連結函式庫
 
 if(BUILD_EXAMPLE)   #設定其他範例執行檔
     add_executable(pcd_viewer ${CMAKE_BINARY_DIR}/../src/pcd_viewer.cpp)

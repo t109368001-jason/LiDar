@@ -548,7 +548,7 @@ namespace myFunction
 		double max_Distance = distance<PointT>(getNearOrFarthestPoint<PointT>(cloud_in, false));
 		double div = max_Distance - min_Distance;
         int division_num = getDivNum<size_t, size_t>(cloud_in->points.size());
-		
+
 		cloud_out->points = XYZ_to_XYZRGBPart(division_num, min_Distance, div, gray, cloud_in->points.begin(), cloud_in->points.end());
 		cloud_out->width = static_cast<uint32_t>(cloud_out->points.size());
 		cloud_out->height = 1;
@@ -775,7 +775,7 @@ namespace myFunction
 
 #pragma region showCloud
 
-	void showCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const double &size)
+	void showCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const double &size = 1.0)
 	{
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 		viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
@@ -794,7 +794,7 @@ namespace myFunction
 
 #pragma region updateCloud
 
-	void updateCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const double &size)
+	void updateCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const double &size = 1.0)
 	{
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 
