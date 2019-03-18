@@ -5,6 +5,7 @@
 #include <future>
 //#include <librealsense2/rs.hpp>
 //#include <librealsense2/rsutil.h>
+#include <boost/algorithm/clamp.hpp>
 #include <pcl/io/ply_io.h>
 #include <pcl/io/vtk_lib_io.h>
 #include <pcl/features/normal_3d.h>
@@ -495,7 +496,7 @@ namespace myFunction
 #pragma region XYZ_to_XYZRGB
 
 	template<typename RandomIt>
-	std::vector<pcl::PointXYZRGB, Eigen::aligned_allocator<pcl::PointXYZRGB>> XYZ_to_XYZRGBPart(const int &division_num, const double &min_Distance, const double &div, const bool &gray, const RandomIt beg, const RandomIt &end)
+	std::vector<pcl::PointXYZRGB, Eigen::aligned_allocator<pcl::PointXYZRGB>> XYZ_to_XYZRGBPart(const int &division_num, const double &min_Distance, const double &div, const bool &gray, const RandomIt beg, const RandomIt &end, const double clip_lower = std::numeric_limits<double>::max(), const double clip_upper = std::numeric_limits<double>::min())
 	{
 		auto len = end - beg;
 
@@ -512,7 +513,9 @@ namespace myFunction
 				if(gray)
 				{
 					uint8_t r;
-					r = ((std::sqrt(point.x*point.x+point.y*point.y+point.z*point.z) - min_Distance) * 255.0 / div);
+					double radius = std::sqrt(point.x*point.x+point.y*point.y+point.z*point.z);
+					boost::algorithm::clamp(radius, clip_lower, clip_upper);
+					r = ((radius - min_Distance) * 255.0 / div);
 					r = 255 - r;
 					rgb = (static_cast<uint32_t>(r) << 16 | static_cast<uint32_t>(r) << 8 | static_cast<uint32_t>(r));
 				}
@@ -531,8 +534,8 @@ namespace myFunction
 			return out;
 		}
 		auto mid = beg + len/2;
-		auto handle = std::async(std::launch::async, XYZ_to_XYZRGBPart<RandomIt>, division_num, min_Distance, div, gray, beg, mid);
-		auto out = XYZ_to_XYZRGBPart(division_num, min_Distance, div, gray, mid, end);
+		auto handle = std::async(std::launch::async, XYZ_to_XYZRGBPart<RandomIt>, division_num, min_Distance, div, gray, beg, mid, clip_lower, clip_upper);
+		auto out = XYZ_to_XYZRGBPart(division_num, min_Distance, div, gray, mid, end, clip_lower, clip_upper);
 		auto out1 = handle.get();
 
 		std::copy(out1.begin(), out1.end(), std::back_inserter(out));
@@ -541,15 +544,15 @@ namespace myFunction
 	}
 
 	template<typename PointT>
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr XYZ_to_XYZRGB(const typename pcl::PointCloud<PointT>::Ptr &cloud_in, const bool gray = false)
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr XYZ_to_XYZRGB(const typename pcl::PointCloud<PointT>::Ptr &cloud_in, const bool gray = false, const double clip_lower = std::numeric_limits<double>::max(), const double clip_upper = std::numeric_limits<double>::min())
 	{
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_out (new pcl::PointCloud<pcl::PointXYZRGB>);
-		double min_Distance = distance<PointT>(getNearOrFarthestPoint<PointT>(cloud_in));
-		double max_Distance = distance<PointT>(getNearOrFarthestPoint<PointT>(cloud_in, false));
+		double min_Distance = std::max(distance<PointT>(getNearOrFarthestPoint<PointT>(cloud_in)), clip_lower);
+		double max_Distance = std::min(distance<PointT>(getNearOrFarthestPoint<PointT>(cloud_in, false)), clip_upper);
 		double div = max_Distance - min_Distance;
         int division_num = getDivNum<size_t, size_t>(cloud_in->points.size());
 
-		cloud_out->points = XYZ_to_XYZRGBPart(division_num, min_Distance, div, gray, cloud_in->points.begin(), cloud_in->points.end());
+		cloud_out->points = XYZ_to_XYZRGBPart(division_num, min_Distance, div, gray, cloud_in->points.begin(), cloud_in->points.end(), clip_lower, clip_upper);
 		cloud_out->width = static_cast<uint32_t>(cloud_out->points.size());
 		cloud_out->height = 1;
 
@@ -699,6 +702,29 @@ namespace myFunction
 	}
 
 #pragma endregion offsetToOrigin
+
+#pragma region combineCloud
+
+	template<typename PointT>
+	void mergeCloud(typename pcl::PointCloud<PointT>::Ptr &cloudMain, typename pcl::PointCloud<PointT>::Ptr &cloud)
+	{
+		std::copy(cloud->points.begin(), cloud->points.end(), std::back_inserter(cloudMain->points));
+		cloudMain->width = static_cast<uint32_t>(cloudMain->points.size());
+		cloudMain->height = 1;	
+	}
+
+	template<typename PointT>
+	typename pcl::PointCloud<PointT>::Ptr combineCloud(typename pcl::PointCloud<PointT>::Ptr &cloud_1, typename pcl::PointCloud<PointT>::Ptr &cloud_2)
+	{
+		typename pcl::PointCloud<PointT>::Ptr cloud_out(new pcl::PointCloud<PointT>);
+		std::copy(cloud_1->points.begin(), cloud_1->points.end(), std::back_inserter(cloud_out->points));
+		std::copy(cloud_2->points.begin(), cloud_2->points.end(), std::back_inserter(cloud_out->points));
+		cloud_out->width = static_cast<uint32_t>(cloud_out->points.size());
+		cloud_out->height = 1;	
+		return cloud_out;
+	}
+
+#pragma endregion combineCloud
 	/*
 #pragma region points_to_pcl
 
@@ -761,6 +787,99 @@ namespace myFunction
 
 #pragma endregion getChanges
 
+#pragma region getNoChanges
+
+	template<typename PointT>
+	typename pcl::PointCloud<PointT>::Ptr getNoChanges(const typename pcl::PointCloud<PointT>::Ptr &cloud1, const typename pcl::PointCloud<PointT>::Ptr &cloud2, const double &resolution)
+	{
+		typename pcl::PointCloud<PointT>::Ptr temp(new typename pcl::PointCloud<PointT>);
+		pcl::octree::OctreePointCloudChangeDetector<PointT> octree (resolution);
+		std::vector<int> newPointIdxVector;
+
+		octree.setInputCloud(cloud1);
+		octree.addPointsFromInputCloud();
+		octree.switchBuffers ();
+		octree.setInputCloud (cloud2);
+		octree.addPointsFromInputCloud ();
+		octree.getPointIndicesFromNewVoxels (newPointIdxVector);
+
+		int it1;
+		auto it2 = newPointIdxVector.begin();
+		for(it1 = 0, it2 = newPointIdxVector.begin(); it1 < cloud2->points.size() && it2 != newPointIdxVector.end(); it1++) 
+		{
+			if(it1 != (*it2))
+			{
+				temp->points.push_back(cloud2->points[it1]);
+			} 
+			else 
+			{
+				it2++;
+				it1--;
+			}
+		}
+		temp->width = static_cast<uint32_t>(temp->points.size());
+		temp->height = 1;
+
+		return temp;
+	}
+
+#pragma endregion getChanges
+
+#pragma region removeTooClosedPoint
+
+	template<typename RandomIt, typename PointT>
+	std::vector<PointT> removeTooClosedPointPart(RandomIt &beg, RandomIt &end, typename pcl::PointCloud<PointT>::Ptr &cloud)
+	{
+		std::vector<PointT> r;
+
+		int i = 0;
+
+		for(auto it = beg; it != end; ++it)
+		{
+			r.push_back(cloud->points[*it]);
+		}
+
+		return r;
+	}
+
+	template<typename PointT>
+	void removeTooClosedPoint(typename pcl::PointCloud<PointT>::Ptr &cloud, const double &resolution = 1.0) 
+	{
+		typename pcl::PointCloud<PointT>::Ptr cloud_out(new typename pcl::PointCloud<PointT>());
+		pcl::octree::OctreePointCloudSearch<PointT> octree(resolution);
+
+		octree.setInputCloud(cloud);
+		octree.addPointsFromInputCloud();
+		std::vector<int> deletePointIdxVector;
+		for(auto it = octree.leaf_begin(); it != octree.leaf_end(); it++) 
+		{
+			pcl::octree::OctreeContainerPointIndices c = it.getLeafContainer();
+			std::vector<int> allPointIdxVector;
+			c.getPointIndices(allPointIdxVector);
+			allPointIdxVector.erase(allPointIdxVector.begin());
+			std::copy(allPointIdxVector.begin(), allPointIdxVector.end(), std::back_inserter(deletePointIdxVector));
+		}
+		int i = 0;
+		std::sort(deletePointIdxVector.begin(), deletePointIdxVector.end());
+		for(const int &index : deletePointIdxVector)
+		{
+			cloud->points.erase(cloud->points.begin() + index - i);
+			i++;
+		}
+
+		cloud->width = static_cast<uint32_t>(cloud->points.size());
+		cloud->height = 1;
+
+		/*
+		cloud_out->points = myFunction::multiThread(deletePointIdxVector, 5, removeTooClosedPointPart, cloud);
+		
+		cloud_out->width = static_cast<uint32_t>(cloud_out->points.size());
+		cloud_out->height = 1;
+		*/
+	}
+
+#pragma endregion
+
 #pragma region printCamera
 
 	void printCamera(const pcl::visualization::Camera &camera)
@@ -780,6 +899,13 @@ namespace myFunction
 		pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
 		viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
 		viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, size, name);
+	}
+
+	template<typename PointT>
+	void showCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const typename pcl::PointCloud<PointT>::Ptr &cloud, const std::string name, const double &size = 1.0, const bool gray = false, const double clip_lower = std::numeric_limits<double>::max(), const double clip_upper = std::numeric_limits<double>::min())
+	{
+		auto cloud_rgb = XYZ_to_XYZRGB<PointT>(cloud, gray, clip_lower, clip_upper);
+		showCloud(viewer, cloud_rgb, name, size);
 	}
 
 	void showCloudWithText(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const double &size, const std::string text = "")
@@ -803,6 +929,13 @@ namespace myFunction
 			viewer->addPointCloud<pcl::PointXYZRGB> (cloud, rgb, name);
 			viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, size, name);
 		}
+	}
+
+	template<typename PointT>
+	void updateCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const typename pcl::PointCloud<PointT>::Ptr &cloud, const std::string name, const double &size = 1.0, const bool gray = false, const double clip_lower = std::numeric_limits<double>::max(), const double clip_upper = std::numeric_limits<double>::min())
+	{
+		auto cloud_rgb = XYZ_to_XYZRGB<PointT>(cloud, gray, clip_lower, clip_upper);
+		updateCloud(viewer, cloud_rgb, name, size);
 	}
 
 	void updateCloud(const boost::shared_ptr<pcl::visualization::PCLVisualizer> &viewer, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const std::string name, const double &size, const std::string text = "")
